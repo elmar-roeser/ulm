@@ -75,6 +75,15 @@ pub struct ModelInfo {
     pub size: u64,
 }
 
+/// Request to pull a model.
+#[derive(Debug, Clone, Serialize)]
+struct PullRequest {
+    /// Model name to pull.
+    name: String,
+    /// Whether to stream progress.
+    stream: bool,
+}
+
 impl OllamaClient {
     /// Creates a new Ollama client with the default URL.
     ///
@@ -247,6 +256,40 @@ impl OllamaClient {
             .context("Failed to parse generate response")?;
 
         Ok(generate_response.response)
+    }
+
+    /// Pulls a model from Ollama registry.
+    ///
+    /// Note: This is a simplified implementation that doesn't show streaming progress.
+    /// For MVP, we just wait for the pull to complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the pull fails.
+    pub async fn pull_model(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/pull", self.base_url);
+
+        let request = PullRequest {
+            name: name.to_string(),
+            stream: false,
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .timeout(Duration::from_secs(600)) // 10 minutes for large models
+            .json(&request)
+            .send()
+            .await
+            .with_context(|| format!("Failed to pull model '{name}'"))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            anyhow::bail!("Failed to pull model '{name}' ({status}): {body}");
+        }
+
+        Ok(())
     }
 }
 

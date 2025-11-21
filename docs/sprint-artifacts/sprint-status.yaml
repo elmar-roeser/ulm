@@ -48,7 +48,7 @@ development_status:
   epic-2: contexted
   2-1-ollama-api-client: done
   2-2-ollama-detection-health-check: done
-  2-3-model-verification-pull: backlog
+  2-3-model-verification-pull: done
   2-4-manpage-directory-scanner: backlog
   2-5-manpage-content-extraction: backlog
   2-6-embedding-generation: backlog
