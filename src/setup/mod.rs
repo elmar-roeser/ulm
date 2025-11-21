@@ -6,9 +6,11 @@
 //! - Manpage scanning and indexing
 
 pub mod index;
+pub mod install;
 pub mod ollama;
 
 pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
+pub use install::{detect_system, display_status, OllamaStatus, SystemCapabilities};
 pub use ollama::OllamaChecker;
 
 use anyhow::{Context, Result};
