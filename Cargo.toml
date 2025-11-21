@@ -33,6 +33,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Vector database
 lancedb = "0.22"
+arrow-array = "56"
+futures = "0.3"
 
 # Terminal UI
 crossterm = "0.28"

@@ -232,9 +232,8 @@ impl ManpageScanner {
             .with_context(|| format!("Failed to read directory: {}", section_path.display()))?;
 
         for entry in entries {
-            let entry = entry.with_context(|| {
-                format!("Failed to read entry in: {}", section_path.display())
-            })?;
+            let entry = entry
+                .with_context(|| format!("Failed to read entry in: {}", section_path.display()))?;
 
             let path = entry.path();
             if Self::is_manpage_file(&path) {
@@ -380,7 +379,9 @@ impl ManpageScanner {
             // Check if we've hit the next section (all caps line)
             if in_section
                 && !trimmed.is_empty()
-                && trimmed.chars().all(|c| c.is_uppercase() || c.is_whitespace())
+                && trimmed
+                    .chars()
+                    .all(|c| c.is_uppercase() || c.is_whitespace())
                 && trimmed.len() > 2
             {
                 break;

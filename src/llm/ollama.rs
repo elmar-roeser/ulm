@@ -348,8 +348,7 @@ mod tests {
     #[test]
     fn test_generate_response_deserialization() {
         let json = r#"{"response": "Hello, world!"}"#;
-        let response: GenerateResponse =
-            serde_json::from_str(json).expect("Failed to deserialize");
+        let response: GenerateResponse = serde_json::from_str(json).expect("Failed to deserialize");
         assert_eq!(response.response, "Hello, world!");
     }
 
