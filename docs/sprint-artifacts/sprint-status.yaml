@@ -83,5 +83,5 @@ development_status:
   epic-5: contexted
   5-1-ollama-detection-status: done
   5-2-native-ollama-installation: done
-  5-3-docker-ollama-installation: backlog
+  5-3-docker-ollama-installation: review
   epic-5-retrospective: optional

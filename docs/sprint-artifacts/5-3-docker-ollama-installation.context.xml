@@ -1,0 +1,105 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>5</epicId>
+    <storyId>3</storyId>
+    <title>Docker Ollama Installation</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/5-3-docker-ollama-installation.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>to run Ollama in Docker</iWant>
+    <soThat>I can use it without system-wide installation</soThat>
+    <tasks>
+      <task id="1">Implement Docker detection (AC: 5, 6)</task>
+      <task id="2">Implement Docker installation (AC: 1, 9)</task>
+      <task id="3">Handle existing container (AC: 7)</task>
+      <task id="4">Health check and verification (AC: 2, 3, 4)</task>
+      <task id="5">Error handling (AC: 5, 8)</task>
+      <task id="6">Integration with setup flow</task>
+      <task id="7">Verify build (AC: 10, 11)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">When Docker available, run: docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama</criterion>
+    <criterion id="2">Wait for container to be healthy (health check with timeout)</criterion>
+    <criterion id="3">Verify Ollama API accessible at localhost:11434</criterion>
+    <criterion id="4">Report success with container info (ID, status)</criterion>
+    <criterion id="5">When Docker not available, report "Docker not found" with installation link</criterion>
+    <criterion id="6">Offer native install as alternative when Docker unavailable</criterion>
+    <criterion id="7">When container "ollama" exists, offer restart or recreate</criterion>
+    <criterion id="8">Handle port conflicts (11434 already in use)</criterion>
+    <criterion id="9">Use volume mount for persistence</criterion>
+    <criterion id="10">cargo build succeeds without errors</criterion>
+    <criterion id="11">cargo clippy -- -D warnings passes</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/architecture.md" title="Architecture" section="Project Structure" snippet="Files to modify: src/setup/install.rs for Docker installation functions"/>
+      <doc path="docs/epics.md" title="Epics" section="Story 5.3" snippet="Docker Ollama Installation acceptance criteria and technical notes"/>
+      <doc path="docs/prd.md" title="PRD" section="FR3" snippet="Setup guides user to install Ollama if not present (with Docker option)"/>
+    </docs>
+    <code>
+      <file path="src/setup/install.rs" kind="service" symbol="install_native" lines="141-195" reason="Pattern to follow for install_docker implementation"/>
+      <file path="src/setup/install.rs" kind="struct" symbol="InstallResult" lines="121-130" reason="Return type for installation functions"/>
+      <file path="src/setup/install.rs" kind="struct" symbol="SystemCapabilities" lines="24-36" reason="Already has docker_available field"/>
+      <file path="src/setup/install.rs" kind="function" symbol="detect_system" lines="51-93" reason="Detection already checks Docker availability"/>
+      <file path="src/setup/install.rs" kind="function" symbol="start_ollama" lines="282-298" reason="Reuse for starting Ollama after Docker install"/>
+      <file path="src/setup/install.rs" kind="function" symbol="wait_for_ollama" lines="309-324" reason="Reuse for health check after container starts"/>
+      <file path="src/setup/install.rs" kind="function" symbol="check_command_exists" lines="113-119" reason="Use to verify Docker command"/>
+      <file path="src/setup/mod.rs" kind="module" symbol="" lines="" reason="May need to export new Docker functions"/>
+    </code>
+    <dependencies>
+      <rust>
+        <package name="tokio" version="1" features="full" reason="Async runtime for health checks"/>
+        <package name="anyhow" version="1" reason="Error handling with context"/>
+        <package name="tracing" version="0.1" reason="Logging"/>
+        <package name="reqwest" version="0.12" reason="HTTP client for API checks"/>
+      </rust>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use async/await for all Docker CLI calls that may take time</constraint>
+    <constraint type="pattern">Follow existing install_native() pattern for install_docker()</constraint>
+    <constraint type="pattern">Use .context() from anyhow for all error chains</constraint>
+    <constraint type="error">Error messages must be clear, actionable, English</constraint>
+    <constraint type="lint">Must pass cargo clippy -- -D warnings</constraint>
+    <constraint type="lint">No unwrap_used or expect_used (denied in Cargo.toml)</constraint>
+    <constraint type="timeout">Installation timeout: 5 minutes max</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="InstallResult" kind="struct" signature="pub struct InstallResult { pub success: bool, pub message: String, pub next_action: Option&lt;String&gt; }" path="src/setup/install.rs"/>
+    <interface name="check_ollama_api" kind="async function" signature="async fn check_ollama_api() -> bool" path="src/setup/install.rs"/>
+    <interface name="wait_for_ollama" kind="async function" signature="pub async fn wait_for_ollama(timeout_secs: u64) -> Result&lt;()&gt;" path="src/setup/install.rs"/>
+    <interface name="check_command_exists" kind="function" signature="fn check_command_exists(cmd: &amp;str) -> bool" path="src/setup/install.rs"/>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Tests use #[tokio::test] for async tests and standard #[test] for sync tests.
+      Follow existing test patterns in install.rs.
+      Target 80% code coverage.
+      Use assert! and assert_eq! macros.
+      Tests at bottom of file in #[cfg(test)] module.
+    </standards>
+    <locations>
+      <location>src/setup/install.rs (unit tests in #[cfg(test)] module)</location>
+      <location>tests/ (integration tests)</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test install_docker() runs docker run command correctly</idea>
+      <idea ac="2,3">Test health check polls API until ready or timeout</idea>
+      <idea ac="5">Test Docker not found returns helpful message</idea>
+      <idea ac="7">Test existing container detection via docker ps -a</idea>
+      <idea ac="8">Test port conflict detection</idea>
+      <idea ac="all">Mock Docker commands for CI environment</idea>
+    </ideas>
+  </tests>
+</story-context>

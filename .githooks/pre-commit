@@ -1,0 +1,22 @@
+#!/bin/sh
+# Pre-commit hook for ulm - runs format and clippy checks
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Check formatting
+echo "📝 Checking formatting..."
+if ! cargo fmt -- --check; then
+    echo "❌ Formatting check failed. Run 'cargo fmt' to fix."
+    exit 1
+fi
+
+# Run clippy
+echo "📎 Running clippy..."
+if ! cargo clippy -- -D warnings; then
+    echo "❌ Clippy check failed. Fix the warnings above."
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
