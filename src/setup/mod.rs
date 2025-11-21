@@ -5,11 +5,13 @@
 //! - Model verification and pulling
 //! - Manpage scanning and indexing
 
+pub mod config;
 pub mod index;
 pub mod install;
 pub mod models;
 pub mod ollama;
 
+pub use config::{get_config_path, load_config, save_config, Config};
 pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
 pub use install::{
     detect_system, display_status, install_native, start_ollama, wait_for_ollama, InstallResult,

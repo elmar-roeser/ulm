@@ -90,6 +90,6 @@ development_status:
   epic-6: contexted
   6-1-fetch-available-models: done
   6-2-display-model-selection-ui: done
-  6-3-model-pull-with-progress: review
-  6-4-config-storage: backlog
+  6-3-model-pull-with-progress: done
+  6-4-config-storage: done
   epic-6-retrospective: optional

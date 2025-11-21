@@ -1,6 +1,6 @@
 # Story 6.3: Model Pull with Progress
 
-Status: review
+Status: done
 
 ## Story
 
@@ -154,6 +154,10 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 
 - MODIFIED: src/setup/models.rs (added ~140 lines for pull function)
 - MODIFIED: src/setup/mod.rs (added exports)
+
+### Completion Notes
+**Completed:** 2025-11-21
+**Definition of Done:** All acceptance criteria met, code reviewed, tests passing
 
 ## Change Log
 

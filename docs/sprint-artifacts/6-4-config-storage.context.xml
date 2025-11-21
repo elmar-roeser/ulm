@@ -1,0 +1,102 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>6</epicId>
+    <storyId>4</storyId>
+    <title>Config Storage</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/6-4-config-storage.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>my model choice saved</iWant>
+    <soThat>ulm uses it for all future queries</soThat>
+    <tasks>
+      <task id="1">Implement config module (AC: 1, 2, 3, 6)</task>
+      <task id="2">Implement save_config (AC: 1, 7)</task>
+      <task id="3">Implement load_config (AC: 4, 5)</task>
+      <task id="4">Integrate with setup flow (AC: 5)</task>
+      <task id="5">Unit tests</task>
+      <task id="6">Verify build (AC: 8, 9)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Save model name to config file after selection</criterion>
+    <criterion id="2">Config stored at ~/.config/ulm/config.toml</criterion>
+    <criterion id="3">Use toml crate for serialization</criterion>
+    <criterion id="4">Load existing config on startup if present</criterion>
+    <criterion id="5">Use configured model name when querying Ollama</criterion>
+    <criterion id="6">Create config directory if it doesn't exist</criterion>
+    <criterion id="7">Config file has user-only permissions (0600)</criterion>
+    <criterion id="8">cargo build succeeds without errors</criterion>
+    <criterion id="9">cargo clippy -- -D warnings passes</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-6.md" title="Tech Spec Epic 6" section="Data Models and Contracts" snippet="Config struct definition with model_name and ollama_url fields, Default impl"/>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-6.md" title="Tech Spec Epic 6" section="APIs and Interfaces" snippet="load_config(), save_config(), get_config_path() function signatures"/>
+      <doc path="docs/epics.md" title="Epics" section="Story 6.4" snippet="Config storage acceptance criteria, toml and directories crates"/>
+      <doc path="docs/architecture.md" title="Architecture" section="Project Structure" snippet="setup/ module structure"/>
+    </docs>
+    <code>
+      <file path="src/db.rs" kind="module" symbol="get_database_path" lines="34-45" reason="Pattern for using directories crate with ProjectDirs, create_dir_all"/>
+      <file path="src/setup/mod.rs" kind="module" symbol="" lines="" reason="Add config.rs module declaration and exports"/>
+      <file path="src/setup/models.rs" kind="module" symbol="pull_model_with_progress" lines="" reason="Integration point - save config after model pull"/>
+    </code>
+    <dependencies>
+      <rust>
+        <package name="toml" version="0.8" reason="Config file serialization - NEW dependency"/>
+        <package name="directories" version="5" reason="XDG-compliant paths - already in Cargo.toml"/>
+        <package name="serde" version="1" features="derive" reason="Config struct serialization"/>
+        <package name="anyhow" version="1" reason="Error handling with .context()"/>
+      </rust>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use directories::ProjectDirs for XDG-compliant config path</constraint>
+    <constraint type="pattern">Use .context() from anyhow for all error chains</constraint>
+    <constraint type="security">Set config file permissions to 0600 (user-only)</constraint>
+    <constraint type="lint">Must pass cargo clippy -- -D warnings</constraint>
+    <constraint type="lint">No unwrap_used or expect_used</constraint>
+    <constraint type="default">Return default Config if file doesn't exist</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="Config" kind="struct" signature="pub struct Config { pub model_name: String, pub ollama_url: String }" path="src/setup/config.rs"/>
+    <interface name="get_config_path" kind="function" signature="pub fn get_config_path() -> Result&lt;PathBuf&gt;" path="src/setup/config.rs"/>
+    <interface name="load_config" kind="function" signature="pub fn load_config() -> Result&lt;Config&gt;" path="src/setup/config.rs"/>
+    <interface name="save_config" kind="function" signature="pub fn save_config(config: &amp;Config) -> Result&lt;()&gt;" path="src/setup/config.rs"/>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Tests use #[test] for sync tests and standard Rust test patterns.
+      Follow existing test patterns in src/db.rs.
+      Target 80% code coverage.
+      Use assert! and assert_eq! macros.
+      Tests at bottom of file in #[cfg(test)] module.
+    </standards>
+    <locations>
+      <location>src/setup/config.rs (unit tests in #[cfg(test)] module)</location>
+    </locations>
+    <ideas>
+      <idea ac="1,2">Test save_config writes to correct XDG path</idea>
+      <idea ac="3">Test Config serializes to valid TOML format</idea>
+      <idea ac="4">Test load_config returns default when file missing</idea>
+      <idea ac="4">Test load_config parses existing config file</idea>
+      <idea ac="6">Test config directory created if not exists</idea>
+    </ideas>
+  </tests>
+
+  <keyInsight>
+    Pattern from src/db.rs:34-45 shows how to use directories::ProjectDirs for XDG paths.
+    Use dirs.config_dir() instead of dirs.data_dir() for config file location.
+    The toml crate needs to be added to Cargo.toml.
+    For file permissions on Unix, use std::os::unix::fs::PermissionsExt with mode 0o600.
+  </keyInsight>
+</story-context>
