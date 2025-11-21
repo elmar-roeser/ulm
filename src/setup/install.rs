@@ -3,11 +3,11 @@
 //! This module provides functionality to detect Ollama installation status
 //! and system capabilities for installation.
 
-use std::process::Command;
-use std::time::Duration;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
-use anyhow::Result;
-use tracing::{debug, info};
+use anyhow::{bail, Context, Result};
+use tracing::{debug, info, warn};
 
 /// Status of Ollama installation on the system.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +116,211 @@ fn check_command_exists(cmd: &str) -> bool {
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+/// Result of an installation attempt.
+#[derive(Debug)]
+pub struct InstallResult {
+    /// Whether installation succeeded.
+    pub success: bool,
+    /// Human-readable message about the result.
+    pub message: String,
+    /// Suggested next action for the user.
+    pub next_action: Option<String>,
+}
+
+/// Installs Ollama natively using the official installer.
+///
+/// # Arguments
+///
+/// * `os` - Operating system name ("linux" or "macos")
+///
+/// # Errors
+///
+/// Returns an error if the installation command fails or times out.
+pub async fn install_native(os: &str) -> Result<InstallResult> {
+    info!(os, "Starting native Ollama installation");
+
+    // Request sudo explanation
+    println!("\nInstalling Ollama requires administrator privileges.");
+    println!("You may be prompted for your password.\n");
+
+    let result = match os {
+        "linux" => install_linux().await,
+        "macos" => install_macos().await,
+        _ => bail!("Native installation not supported on {os}"),
+    };
+
+    match result {
+        Ok(()) => {
+            // Verify installation
+            if check_command_exists("ollama") {
+                // Start the service
+                if let Err(e) = start_ollama().await {
+                    warn!(error = %e, "Failed to start Ollama service");
+                    return Ok(InstallResult {
+                        success: true,
+                        message: "Ollama installed successfully".to_string(),
+                        next_action: Some("Run 'ollama serve' to start the service".to_string()),
+                    });
+                }
+
+                // Wait for API to be ready
+                match wait_for_ollama(60).await {
+                    Ok(()) => Ok(InstallResult {
+                        success: true,
+                        message: "Ollama installed and running".to_string(),
+                        next_action: None,
+                    }),
+                    Err(_) => Ok(InstallResult {
+                        success: true,
+                        message: "Ollama installed but not yet responding".to_string(),
+                        next_action: Some("Wait a moment and run 'ulm setup' again".to_string()),
+                    }),
+                }
+            } else {
+                Ok(InstallResult {
+                    success: false,
+                    message: "Installation completed but ollama binary not found".to_string(),
+                    next_action: Some("Check installation logs and try again".to_string()),
+                })
+            }
+        }
+        Err(e) => Ok(InstallResult {
+            success: false,
+            message: format!("Installation failed: {e}"),
+            next_action: Some("Check error message and try manual installation".to_string()),
+        }),
+    }
+}
+
+/// Installs Ollama on Linux via curl.
+async fn install_linux() -> Result<()> {
+    println!("Installing Ollama via official installer...");
+
+    let start = Instant::now();
+    let timeout = Duration::from_secs(300); // 5 minutes
+
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg("curl -fsSL https://ollama.com/install.sh | sh")
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .context("Failed to start installer")?;
+
+    // Poll for completion with timeout
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if status.success() {
+                    return Ok(());
+                }
+                bail!("Installer exited with status: {status}");
+            }
+            Ok(None) => {
+                if start.elapsed() > timeout {
+                    let _ = child.kill();
+                    bail!("Installation timed out after 5 minutes");
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            Err(e) => bail!("Failed to check installer status: {e}"),
+        }
+    }
+}
+
+/// Installs Ollama on macOS via brew or curl fallback.
+async fn install_macos() -> Result<()> {
+    // Try brew first
+    if check_command_exists("brew") {
+        println!("Installing Ollama via Homebrew...");
+
+        let start = Instant::now();
+        let timeout = Duration::from_secs(300);
+
+        let mut child = Command::new("brew")
+            .args(["install", "ollama"])
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .context("Failed to start brew")?;
+
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if status.success() {
+                        return Ok(());
+                    }
+                    // Brew failed, try curl fallback
+                    warn!("Brew installation failed, trying curl fallback");
+                    break;
+                }
+                Ok(None) => {
+                    if start.elapsed() > timeout {
+                        let _ = child.kill();
+                        bail!("Installation timed out after 5 minutes");
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                Err(e) => bail!("Failed to check brew status: {e}"),
+            }
+        }
+    }
+
+    // Curl fallback (same as Linux)
+    install_linux().await
+}
+
+/// Starts the Ollama service.
+///
+/// # Errors
+///
+/// Returns an error if the service fails to start.
+pub async fn start_ollama() -> Result<()> {
+    info!("Starting Ollama service");
+
+    // Start ollama serve in background
+    Command::new("ollama")
+        .arg("serve")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("Failed to start ollama serve")?;
+
+    // Give it a moment to start
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    Ok(())
+}
+
+/// Waits for Ollama API to become available.
+///
+/// # Arguments
+///
+/// * `timeout_secs` - Maximum seconds to wait
+///
+/// # Errors
+///
+/// Returns an error if the API is not available within the timeout.
+pub async fn wait_for_ollama(timeout_secs: u64) -> Result<()> {
+    let start = Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+
+    debug!(timeout_secs, "Waiting for Ollama API");
+
+    while start.elapsed() < timeout {
+        if check_ollama_api().await {
+            info!(elapsed_ms = start.elapsed().as_millis(), "Ollama API ready");
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    bail!("Ollama API not available after {timeout_secs} seconds")
 }
 
 /// Displays the current system status to the user.
