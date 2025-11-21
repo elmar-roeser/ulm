@@ -27,6 +27,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::db;
+use crate::llm::OllamaClient;
 
 /// Runs the complete setup process.
 ///
@@ -53,13 +54,46 @@ pub async fn run_setup() -> Result<()> {
         .context("Failed to connect to Ollama")?;
     println!("✓ Ollama detected at localhost:11434\n");
 
-    // Step 2: Verify/pull model
-    println!("Checking for LLM model...");
-    let model = checker
-        .check_model()
+    // Step 2: Model selection and setup
+    let client = OllamaClient::new().context("Failed to create Ollama client")?;
+
+    // Get available models with installed status
+    println!("Fetching available models...");
+    let models = get_available_models(&client)
         .await
-        .context("Failed to check model")?;
-    println!("✓ Model '{model}' available\n");
+        .context("Failed to fetch available models")?;
+
+    // Detect system RAM and display selection
+    let system_ram = get_system_ram_gb();
+    println!("System RAM: {system_ram:.1} GB\n");
+
+    let selected_idx = display_model_selection(&models, system_ram)
+        .context("Failed to display model selection")?;
+
+    let selected_model = &models[selected_idx];
+    info!(model = %selected_model.name, "User selected model");
+
+    // Pull model if not installed
+    if selected_model.installed {
+        println!("\n✓ Model '{}' already installed\n", selected_model.name);
+    } else {
+        println!("\nDownloading {}...", selected_model.name);
+        pull_model_with_progress(&client, &selected_model.name)
+            .await
+            .context("Failed to pull model")?;
+        println!("✓ Model '{}' downloaded\n", selected_model.name);
+    }
+
+    // Save configuration
+    let config = Config {
+        model_name: selected_model.name.clone(),
+        ollama_url: "http://localhost:11434".to_string(),
+    };
+    save_config(&config).context("Failed to save configuration")?;
+    println!(
+        "✓ Configuration saved to {}\n",
+        get_config_path()?.display()
+    );
 
     // Steps 3-6: Run indexing
     let count = run_indexing().await?;
