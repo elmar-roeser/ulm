@@ -3,9 +3,87 @@
 //! This module provides an interactive TUI for displaying, navigating,
 //! and acting on command suggestions.
 
+pub mod input;
 pub mod render;
 
+use std::io;
+
+use anyhow::{Context, Result};
+use crossterm::event;
+use crossterm::execute;
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
+
 use crate::llm::{CommandSuggestion, RiskLevel};
+
+/// User action selected in the TUI.
+#[derive(Debug, Clone)]
+pub enum UserAction {
+    /// Execute the command directly.
+    Execute(String),
+    /// Copy command to clipboard.
+    Copy(String),
+    /// Edit command before executing.
+    Edit(String),
+    /// Abort without action.
+    Abort,
+}
+
+/// Runs the TUI with the given suggestions.
+///
+/// Returns the user's chosen action.
+///
+/// # Errors
+///
+/// Returns an error if terminal operations fail.
+pub fn run_tui(suggestions: Vec<CommandSuggestion>) -> Result<UserAction> {
+    // Setup terminal
+    enable_raw_mode().context("Failed to enable raw mode")?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
+
+    // Create app state
+    let mut app = App::new(suggestions);
+
+    // Main event loop
+    let result = run_event_loop(&mut terminal, &mut app);
+
+    // Cleanup terminal
+    disable_raw_mode().context("Failed to disable raw mode")?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)
+        .context("Failed to leave alternate screen")?;
+    terminal.show_cursor().context("Failed to show cursor")?;
+
+    result
+}
+
+/// Runs the main event loop.
+fn run_event_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App,
+) -> Result<UserAction> {
+    loop {
+        // Render
+        terminal
+            .draw(|frame| render::render(frame, app))
+            .context("Failed to draw frame")?;
+
+        // Handle events
+        if event::poll(std::time::Duration::from_millis(100)).context("Failed to poll events")? {
+            let event = event::read().context("Failed to read event")?;
+
+            if let Some(action) = input::handle_event(app, event) {
+                return Ok(action);
+            }
+        }
+    }
+}
 
 /// Application state for the TUI.
 #[derive(Debug)]

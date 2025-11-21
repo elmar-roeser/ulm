@@ -70,7 +70,7 @@ development_status:
   # Epic 4: Interactive Experience
   epic-4: contexted
   4-1-tui-renderer: done
-  4-2-event-loop-navigation: backlog
+  4-2-event-loop-navigation: done
   4-3-execute-action: backlog
   4-4-copy-action: backlog
   4-5-edit-action: backlog
