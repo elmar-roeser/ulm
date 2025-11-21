@@ -6,9 +6,21 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{Context, Result};
 use tracing::{debug, info, warn};
+
+/// Extracted content from a manpage.
+#[derive(Debug, Clone)]
+pub struct ManpageContent {
+    /// Tool name (e.g., "ls").
+    pub tool_name: String,
+    /// Section number (e.g., "1").
+    pub section: String,
+    /// Combined NAME and DESCRIPTION text for embedding.
+    pub description: String,
+}
 
 /// Default manpage directories to scan.
 const DEFAULT_PATHS: &[&str] = &[
@@ -137,6 +149,177 @@ impl ManpageScanner {
     pub fn paths(&self) -> &[PathBuf] {
         &self.paths
     }
+
+    /// Extracts content from a manpage file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the manpage cannot be read or parsed.
+    pub fn extract_content(path: &Path) -> Result<ManpageContent> {
+        let (tool_name, section) = Self::parse_filename(path)?;
+
+        debug!(tool = %tool_name, section = %section, "Extracting manpage content");
+
+        // Run man -P cat to get raw content
+        let output = Command::new("man")
+            .args(["-P", "cat", &tool_name])
+            .output()
+            .with_context(|| format!("Failed to execute man command for '{tool_name}'"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("man command failed for '{}': {}", tool_name, stderr.trim());
+        }
+
+        // Convert output to UTF-8
+        let content = String::from_utf8(output.stdout)
+            .with_context(|| format!("Manpage '{tool_name}' contains invalid UTF-8"))?;
+
+        // Parse NAME and DESCRIPTION
+        let description = Self::parse_manpage_content(&content, &tool_name);
+
+        Ok(ManpageContent {
+            tool_name,
+            section,
+            description,
+        })
+    }
+
+    /// Parses filename to extract tool name and section.
+    fn parse_filename(path: &Path) -> Result<(String, String)> {
+        let filename = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .context("Invalid manpage filename")?;
+
+        // Remove .gz if present
+        let filename = filename.strip_suffix(".gz").unwrap_or(filename);
+
+        // Extract section (last character before extension)
+        let section = filename
+            .chars()
+            .last()
+            .map_or_else(|| "1".to_string(), |c| c.to_string());
+
+        // Extract tool name (everything before the dot and section)
+        let tool_name = filename
+            .rsplit_once('.')
+            .map_or_else(|| filename.to_string(), |(name, _)| name.to_string());
+
+        Ok((tool_name, section))
+    }
+
+    /// Parses manpage content to extract NAME and DESCRIPTION.
+    fn parse_manpage_content(content: &str, tool_name: &str) -> String {
+        let mut result = String::new();
+
+        // Try to find NAME section
+        if let Some(name_text) = Self::extract_section(content, "NAME") {
+            // Take first line of NAME
+            let first_line = name_text.lines().next().unwrap_or("").trim();
+            if !first_line.is_empty() {
+                result.push_str(first_line);
+            }
+        }
+
+        // If no NAME found, use tool name
+        if result.is_empty() {
+            result.push_str(tool_name);
+        }
+
+        // Try to find DESCRIPTION section
+        if let Some(desc_text) = Self::extract_section(content, "DESCRIPTION") {
+            // Take first paragraph (up to 500 chars)
+            let first_para = Self::extract_first_paragraph(&desc_text);
+            if !first_para.is_empty() {
+                if !result.is_empty() {
+                    result.push_str(" - ");
+                }
+                result.push_str(&first_para);
+            }
+        }
+
+        // Limit total length
+        if result.len() > 500 {
+            result.truncate(500);
+            result.push_str("...");
+        }
+
+        result
+    }
+
+    /// Extracts a section from manpage content.
+    fn extract_section(content: &str, section_name: &str) -> Option<String> {
+        let lines: Vec<&str> = content.lines().collect();
+        let mut in_section = false;
+        let mut section_text = String::new();
+
+        for line in lines {
+            let trimmed = line.trim();
+
+            // Check if this is a section header
+            if trimmed == section_name || trimmed == section_name.to_uppercase() {
+                in_section = true;
+                continue;
+            }
+
+            // Check if we've hit the next section (all caps line)
+            if in_section
+                && !trimmed.is_empty()
+                && trimmed.chars().all(|c| c.is_uppercase() || c.is_whitespace())
+                && trimmed.len() > 2
+            {
+                break;
+            }
+
+            if in_section && !trimmed.is_empty() {
+                if !section_text.is_empty() {
+                    section_text.push(' ');
+                }
+                section_text.push_str(trimmed);
+            }
+        }
+
+        if section_text.is_empty() {
+            None
+        } else {
+            Some(section_text)
+        }
+    }
+
+    /// Extracts the first paragraph from text.
+    fn extract_first_paragraph(text: &str) -> String {
+        let mut result = String::new();
+        let mut prev_empty = false;
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.is_empty() {
+                if !result.is_empty() {
+                    prev_empty = true;
+                }
+                continue;
+            }
+
+            // Stop at second paragraph
+            if prev_empty && !result.is_empty() {
+                break;
+            }
+
+            if !result.is_empty() {
+                result.push(' ');
+            }
+            result.push_str(trimmed);
+
+            // Stop if we have enough text
+            if result.len() > 400 {
+                break;
+            }
+        }
+
+        result
+    }
 }
 
 impl Default for ManpageScanner {
@@ -224,5 +407,50 @@ mod tests {
         assert!(!ManpageScanner::is_manpage_file(Path::new("readme.txt")));
         assert!(!ManpageScanner::is_manpage_file(Path::new("lib.3"))); // man3 not supported
         assert!(!ManpageScanner::is_manpage_file(Path::new("config.5"))); // man5 not supported
+    }
+
+    #[test]
+    fn test_parse_filename() {
+        let (name, section) = ManpageScanner::parse_filename(Path::new("ls.1")).unwrap();
+        assert_eq!(name, "ls");
+        assert_eq!(section, "1");
+
+        let (name, section) = ManpageScanner::parse_filename(Path::new("mount.8.gz")).unwrap();
+        assert_eq!(name, "mount");
+        assert_eq!(section, "8");
+
+        let (name, section) = ManpageScanner::parse_filename(Path::new("git-commit.1")).unwrap();
+        assert_eq!(name, "git-commit");
+        assert_eq!(section, "1");
+    }
+
+    #[test]
+    fn test_extract_section() {
+        let content = "NAME\n       ls - list directory contents\n\nDESCRIPTION\n       List information about the FILEs.";
+
+        let name = ManpageScanner::extract_section(content, "NAME");
+        assert!(name.is_some());
+        assert!(name.unwrap().contains("list directory"));
+
+        let desc = ManpageScanner::extract_section(content, "DESCRIPTION");
+        assert!(desc.is_some());
+        assert!(desc.unwrap().contains("FILEs"));
+    }
+
+    #[test]
+    fn test_parse_manpage_content() {
+        let content = "NAME\n       ls - list directory contents\n\nDESCRIPTION\n       List information about the FILEs.";
+
+        let result = ManpageScanner::parse_manpage_content(content, "ls");
+        assert!(result.contains("ls"));
+        assert!(result.contains("list"));
+    }
+
+    #[test]
+    fn test_extract_first_paragraph() {
+        let text = "First paragraph line one. Line two.\n\nSecond paragraph.";
+        let para = ManpageScanner::extract_first_paragraph(text);
+        assert!(para.contains("First paragraph"));
+        assert!(!para.contains("Second"));
     }
 }

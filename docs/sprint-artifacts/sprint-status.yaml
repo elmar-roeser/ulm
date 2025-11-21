@@ -50,7 +50,7 @@ development_status:
   2-2-ollama-detection-health-check: done
   2-3-model-verification-pull: done
   2-4-manpage-directory-scanner: done
-  2-5-manpage-content-extraction: backlog
+  2-5-manpage-content-extraction: done
   2-6-embedding-generation: backlog
   2-7-lancedb-storage: backlog
   2-8-setup-orchestration-progress: backlog
