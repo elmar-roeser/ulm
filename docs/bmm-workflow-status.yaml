@@ -63,7 +63,7 @@ workflow_status:
   - id: "create-design"
     phase: 1
     name: "UX Design"
-    status: "conditional"
+    status: "skipped"
     condition: "if_has_ui"
     agent: "ux-designer"
     command: "/bmad:bmm:workflows:create-ux-design"
@@ -86,7 +86,7 @@ workflow_status:
   - id: "test-design"
     phase: 2
     name: "Test Design"
-    status: "recommended"
+    status: "docs/test-design-system.md"
     agent: "tea"
     command: "/bmad:bmm:workflows:test-design"
 
