@@ -59,22 +59,22 @@ fn test_update_subcommand() {
 
 #[test]
 fn test_query_string_capture() {
+    // Queries now try to search the database, which fails without setup
     ulm()
         .args(["find", "large", "files"])
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Query: find large files"));
+        .failure()
+        .stderr(predicate::str::contains("ulm setup"));
 }
 
 #[test]
 fn test_query_with_quotes() {
+    // Queries now try to search the database, which fails without setup
     ulm()
         .arg("find large files in current directory")
         .assert()
-        .success()
-        .stdout(predicate::str::contains(
-            "Query: find large files in current directory",
-        ));
+        .failure()
+        .stderr(predicate::str::contains("ulm setup"));
 }
 
 #[test]
@@ -90,11 +90,12 @@ fn test_no_args_shows_help_message() {
 
 #[test]
 fn test_invalid_subcommand() {
+    // Unknown args are treated as queries, which fail without setup
     ulm()
         .arg("invalid-command")
         .assert()
-        .success() // It treats it as a query
-        .stdout(predicate::str::contains("Query: invalid-command"));
+        .failure()
+        .stderr(predicate::str::contains("ulm setup"));
 }
 
 #[test]
