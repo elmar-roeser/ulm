@@ -1,0 +1,119 @@
+[package]
+name = "ulm"
+version = "0.1.0"
+edition = "2021"
+authors = ["Elmar Röser"]
+description = "AI-powered manpage assistant using local LLM"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/eroeser/ulm"
+readme = "README.md"
+keywords = ["cli", "manpage", "ai", "ollama", "assistant"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI parsing
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+anyhow = "1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Vector database
+lancedb = "0.22"
+
+# Terminal UI
+crossterm = "0.28"
+
+# Clipboard
+arboard = "3"
+
+# Line editor
+rustyline = "14"
+
+# XDG paths
+directories = "5"
+
+# Progress bars
+indicatif = "0.17"
+
+# Cleanup on panic
+scopeguard = "1"
+
+[dev-dependencies]
+
+[lints.rust]
+# --- Safety ---
+unsafe_code = "forbid"
+
+# --- Compatibility ---
+future_incompatible = { level = "deny", priority = 1 }
+
+# --- Dependencies ---
+# Allow until crates are used in later stories
+unused_crate_dependencies = "allow"
+
+# --- Code Hygiene ---
+dead_code = "warn"
+unused_imports = "warn"
+explicit_outlives_requirements = "warn"
+macro_use_extern_crate = "warn"
+
+# --- Documentation ---
+missing_docs = "warn"
+
+# --- Debuggability ---
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+# --- Group Settings ---
+cargo = "warn"
+complexity = "warn"
+correctness = "deny"
+pedantic = "warn"
+perf = "warn"
+style = "warn"
+
+# --- Safety & Robustness ---
+expect_used = { level = "deny", priority = 1 }
+large_stack_arrays = { level = "warn", priority = 1 }
+panic = { level = "warn", priority = 1 }
+unwrap_used = { level = "deny", priority = 1 }
+
+# --- Dependencies & Imports ---
+enum_glob_use = { level = "deny", priority = 1 }
+multiple_crate_versions = { level = "allow", priority = 1 }
+wildcard_imports = { level = "deny", priority = 1 }
+
+# --- Code Hygiene & Process ---
+dbg_macro = { level = "deny", priority = 1 }
+redundant_pub_crate = { level = "warn", priority = 1 }
+todo = { level = "deny", priority = 1 }
+unnecessary_wraps = { level = "deny", priority = 1 }
+
+# --- Code Layout & Complexity ---
+too_many_lines = { level = "warn", priority = 1 }
+
+# --- Performance ---
+box_collection = { level = "deny", priority = 1 }
+missing_const_for_fn = { level = "deny", priority = 1 }
+
+# --- Documentation ---
+missing_docs_in_private_items = { level = "warn", priority = 1 }
+missing_errors_doc = { level = "warn", priority = 1 }
+missing_panics_doc = { level = "warn", priority = 1 }
+
+# --- Style & Readability ---
+use_self = { level = "warn", priority = 1 }

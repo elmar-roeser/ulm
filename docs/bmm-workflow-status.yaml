@@ -1,0 +1,113 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#   - skipped: Optional workflow that was not selected
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+
+generated: "2025-11-20"
+project: "ulm"
+project_type: "Rust CLI Tool"
+selected_track: "method"
+field_type: "greenfield"
+workflow_path: "method-greenfield.yaml"
+
+workflow_status:
+  # Phase 0: Discovery (Optional)
+  - id: "brainstorm-project"
+    phase: 0
+    name: "Brainstorm"
+    status: "skipped"
+    agent: "analyst"
+    command: "/bmad:bmm:workflows:brainstorm-project"
+
+  - id: "research"
+    phase: 0
+    name: "Research"
+    status: "skipped"
+    agent: "analyst"
+    command: "/bmad:bmm:workflows:research"
+
+  - id: "product-brief"
+    phase: 0
+    name: "Product Brief"
+    status: "docs/product-brief-ulm-2025-11-20.md"
+    agent: "analyst"
+    command: "/bmad:bmm:workflows:product-brief"
+
+  # Phase 1: Planning
+  - id: "prd"
+    phase: 1
+    name: "PRD"
+    status: "docs/prd.md"
+    agent: "pm"
+    command: "/bmad:bmm:workflows:prd"
+
+  - id: "validate-prd"
+    phase: 1
+    name: "Validate PRD"
+    status: "optional"
+    agent: "pm"
+    command: "/bmad:bmm:workflows:validate-prd"
+
+  - id: "create-design"
+    phase: 1
+    name: "UX Design"
+    status: "conditional"
+    condition: "if_has_ui"
+    agent: "ux-designer"
+    command: "/bmad:bmm:workflows:create-ux-design"
+
+  # Phase 2: Solutioning
+  - id: "create-architecture"
+    phase: 2
+    name: "Architecture"
+    status: "docs/architecture.md"
+    agent: "architect"
+    command: "/bmad:bmm:workflows:architecture"
+
+  - id: "create-epics-and-stories"
+    phase: 2
+    name: "Epics & Stories"
+    status: "docs/epics.md"
+    agent: "pm"
+    command: "/bmad:bmm:workflows:create-epics-and-stories"
+
+  - id: "test-design"
+    phase: 2
+    name: "Test Design"
+    status: "recommended"
+    agent: "tea"
+    command: "/bmad:bmm:workflows:test-design"
+
+  - id: "validate-architecture"
+    phase: 2
+    name: "Validate Architecture"
+    status: "optional"
+    agent: "architect"
+    command: "/bmad:bmm:workflows:validate-architecture"
+
+  - id: "implementation-readiness"
+    phase: 2
+    name: "Implementation Readiness"
+    status: "docs/implementation-readiness-report-2025-11-21.md"
+    agent: "architect"
+    command: "/bmad:bmm:workflows:implementation-readiness"
+
+  # Phase 3: Implementation
+  - id: "sprint-planning"
+    phase: 3
+    name: "Sprint Planning"
+    status: "docs/sprint-artifacts/sprint-status.yaml"
+    agent: "sm"
+    command: "/bmad:bmm:workflows:sprint-planning"

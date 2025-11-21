@@ -1,0 +1,80 @@
+# generated: 2025-11-21
+# project: ulm
+# project_key: ulm
+# tracking_system: file-system
+# story_location: docs/sprint-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic exists in epic file but not contexted
+#   - contexted: Epic tech context created (required before drafting stories)
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved and story context created
+#   - in-progress: Developer actively working on implementation
+#   - review: Under SM review (via code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epics should be 'contexted' before stories can be 'drafted'
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically drafts next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', SM reviews, then Dev moves to 'done'
+
+generated: 2025-11-21
+project: ulm
+project_key: ulm
+tracking_system: file-system
+story_location: docs/sprint-artifacts
+
+development_status:
+  # Epic 1: Foundation
+  epic-1: contexted
+  1-1-project-initialization: done
+  1-2-module-structure-setup: ready-for-dev
+  1-3-cli-argument-parsing: backlog
+  1-4-error-handling-infrastructure: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Setup & Knowledge Base
+  epic-2: backlog
+  2-1-ollama-api-client: backlog
+  2-2-ollama-detection-health-check: backlog
+  2-3-model-verification-pull: backlog
+  2-4-manpage-directory-scanner: backlog
+  2-5-manpage-content-extraction: backlog
+  2-6-embedding-generation: backlog
+  2-7-lancedb-storage: backlog
+  2-8-setup-orchestration-progress: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Query & Intelligence
+  epic-3: backlog
+  3-1-vector-search: backlog
+  3-2-manpage-content-loading: backlog
+  3-3-directory-context-scanner: backlog
+  3-4-context-builder: backlog
+  3-5-prompt-builder: backlog
+  3-6-llm-response-parser: backlog
+  3-7-query-orchestration: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Interactive Experience
+  epic-4: backlog
+  4-1-tui-renderer: backlog
+  4-2-event-loop-navigation: backlog
+  4-3-execute-action: backlog
+  4-4-copy-action: backlog
+  4-5-edit-action: backlog
+  4-6-abort-action: backlog
+  4-7-error-display: backlog
+  4-8-tui-orchestration: backlog
+  epic-4-retrospective: optional
