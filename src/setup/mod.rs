@@ -5,9 +5,8 @@
 //! - Model verification and pulling
 //! - Manpage scanning and indexing
 
+pub mod index;
 pub mod ollama;
 
-// Submodules (to be implemented in Epic 2)
-// pub mod index;
-
+pub use index::ManpageScanner;
 pub use ollama::OllamaChecker;
