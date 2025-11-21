@@ -55,6 +55,53 @@ pub struct DirectoryContext {
     pub cwd: PathBuf,
 }
 
+/// Maximum number of marker files to include in prompt.
+const MAX_MARKERS_IN_PROMPT: usize = 20;
+
+impl DirectoryContext {
+    /// Formats the context for inclusion in an LLM prompt.
+    ///
+    /// Returns a human-readable string describing the current directory
+    /// context, including project type and marker files.
+    #[must_use]
+    pub fn format_for_prompt(&self) -> String {
+        let mut parts = Vec::new();
+
+        // Working directory
+        parts.push(format!("Working Directory: {}", self.cwd.display()));
+
+        // Project type
+        let project_str = self
+            .project_type
+            .as_ref()
+            .map_or("Unknown", ProjectType::as_str);
+        parts.push(format!("Project Type: {project_str}"));
+
+        // Marker files (limited)
+        if !self.marker_files.is_empty() {
+            let markers: Vec<&str> = self
+                .marker_files
+                .iter()
+                .take(MAX_MARKERS_IN_PROMPT)
+                .map(String::as_str)
+                .collect();
+            let markers_str = markers.join(", ");
+
+            if self.marker_files.len() > MAX_MARKERS_IN_PROMPT {
+                parts.push(format!(
+                    "Marker Files: {} (and {} more)",
+                    markers_str,
+                    self.marker_files.len() - MAX_MARKERS_IN_PROMPT
+                ));
+            } else {
+                parts.push(format!("Marker Files: {markers_str}"));
+            }
+        }
+
+        parts.join("\n")
+    }
+}
+
 /// Marker files and their associated project types.
 /// Order determines detection priority.
 const MARKER_FILES: &[(&str, ProjectType)] = &[
@@ -233,5 +280,48 @@ mod tests {
         // Node should win due to priority
         assert_eq!(context.project_type, Some(ProjectType::Node));
         assert_eq!(context.marker_files.len(), 2);
+    }
+
+    #[test]
+    fn test_format_for_prompt_basic() {
+        let context = DirectoryContext {
+            project_type: Some(ProjectType::Rust),
+            marker_files: vec!["Cargo.toml".to_string(), ".git".to_string()],
+            cwd: PathBuf::from("/home/user/project"),
+        };
+
+        let formatted = context.format_for_prompt();
+        assert!(formatted.contains("Working Directory: /home/user/project"));
+        assert!(formatted.contains("Project Type: Rust"));
+        assert!(formatted.contains("Marker Files: Cargo.toml, .git"));
+    }
+
+    #[test]
+    fn test_format_for_prompt_no_project_type() {
+        let context = DirectoryContext {
+            project_type: None,
+            marker_files: vec![],
+            cwd: PathBuf::from("/tmp"),
+        };
+
+        let formatted = context.format_for_prompt();
+        assert!(formatted.contains("Project Type: Unknown"));
+        assert!(!formatted.contains("Marker Files"));
+    }
+
+    #[test]
+    fn test_format_for_prompt_marker_limit() {
+        let markers: Vec<String> = (0..25).map(|i| format!("file{i}.txt")).collect();
+        let context = DirectoryContext {
+            project_type: Some(ProjectType::Python),
+            marker_files: markers,
+            cwd: PathBuf::from("/project"),
+        };
+
+        let formatted = context.format_for_prompt();
+        assert!(formatted.contains("(and 5 more)"));
+        // First 20 should be included
+        assert!(formatted.contains("file0.txt"));
+        assert!(formatted.contains("file19.txt"));
     }
 }
