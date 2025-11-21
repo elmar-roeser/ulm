@@ -41,7 +41,7 @@ development_status:
   1-1-project-initialization: done
   1-2-module-structure-setup: done
   1-3-cli-argument-parsing: done
-  1-4-error-handling-infrastructure: backlog
+  1-4-error-handling-infrastructure: done
   epic-1-retrospective: optional
 
   # Epic 2: Setup & Knowledge Base

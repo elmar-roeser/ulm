@@ -4,37 +4,70 @@
 //! It provides an AI-powered bridge between what users want to accomplish and the
 //! thousands of powerful but cryptic Unix tools available on their system.
 
+use std::process::ExitCode;
+
+use tracing::{debug, error, info};
+use tracing_subscriber::EnvFilter;
 use ulm::cli::{Args, Commands};
 use ulm::Result;
 
 /// Application entry point.
 ///
-/// Sets up the CLI, initializes logging, and dispatches to the appropriate
-/// command handler.
+/// Sets up logging, parses CLI arguments, and dispatches to the appropriate
+/// command handler. Errors are printed to stderr with exit code 1.
+fn main() -> ExitCode {
+    // Initialize tracing subscriber with env filter
+    // Enable with: RUST_LOG=ulm=debug
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("ulm=info")),
+        )
+        .with_target(false)
+        .init();
+
+    debug!("ulm starting");
+
+    // Run the application and handle errors
+    match run() {
+        Ok(()) => {
+            debug!("ulm completed successfully");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            error!("{err:?}");
+            eprintln!("Error: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Main application logic.
 ///
 /// # Errors
 ///
 /// Returns an error if any part of the application fails.
-#[allow(clippy::unnecessary_wraps)] // Will return errors in Story 1.4
-fn main() -> Result<()> {
+#[allow(clippy::unnecessary_wraps)] // Will return errors in Epic 2+
+fn run() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse_args();
-
-    // Placeholder: Tracing setup will be added in Story 1.4
+    debug!(?args, "parsed arguments");
 
     // Dispatch based on command or query
     match args.command {
         Some(Commands::Setup) => {
+            info!("running setup");
             println!("Running setup...");
             // Placeholder: Will be implemented in Epic 2
         }
         Some(Commands::Update) => {
+            info!("running update");
             println!("Running update...");
             // Placeholder: Will be implemented in Epic 2
         }
         None => {
             if args.has_query() {
                 let query = args.query_string();
+                info!(%query, "processing query");
                 println!("Query: {query}");
                 // Placeholder: Will be implemented in Epic 3
             } else {
