@@ -62,7 +62,7 @@ development_status:
   3-2-manpage-content-loading: done
   3-3-directory-context-scanner: done
   3-4-context-builder: done
-  3-5-prompt-builder: backlog
+  3-5-prompt-builder: done
   3-6-llm-response-parser: backlog
   3-7-query-orchestration: backlog
   epic-3-retrospective: optional
