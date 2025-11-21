@@ -5,16 +5,10 @@
 //! - Prompt building
 //! - Response parsing
 
-// Submodules (to be implemented in Epic 2 & 3)
-// pub mod ollama;
+pub mod ollama;
+
+// Submodules (to be implemented in Epic 3)
 // pub mod prompt;
 // pub mod response;
 
-/// Placeholder for LLM orchestration.
-///
-/// Will be implemented across Stories 2.1, 3.5, 3.6.
-#[derive(Debug)]
-pub struct LlmOrchestrator {
-    /// Placeholder field.
-    _placeholder: (),
-}
+pub use ollama::{OllamaClient, DEFAULT_MODEL, DEFAULT_OLLAMA_URL};
