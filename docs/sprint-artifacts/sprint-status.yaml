@@ -47,7 +47,7 @@ development_status:
   # Epic 2: Setup & Knowledge Base
   epic-2: contexted
   2-1-ollama-api-client: done
-  2-2-ollama-detection-health-check: backlog
+  2-2-ollama-detection-health-check: done
   2-3-model-verification-pull: backlog
   2-4-manpage-directory-scanner: backlog
   2-5-manpage-content-extraction: backlog

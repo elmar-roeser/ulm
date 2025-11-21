@@ -5,15 +5,9 @@
 //! - Model verification and pulling
 //! - Manpage scanning and indexing
 
+pub mod ollama;
+
 // Submodules (to be implemented in Epic 2)
-// pub mod ollama;
 // pub mod index;
 
-/// Placeholder for setup orchestration.
-///
-/// Will be implemented in Story 2.8: Setup Orchestration & Progress.
-#[derive(Debug)]
-pub struct SetupOrchestrator {
-    /// Placeholder field.
-    _placeholder: (),
-}
+pub use ollama::OllamaChecker;
