@@ -8,5 +8,5 @@
 pub mod index;
 pub mod ollama;
 
-pub use index::{ManpageContent, ManpageScanner};
+pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
 pub use ollama::OllamaChecker;

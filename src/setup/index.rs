@@ -7,9 +7,13 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
+use tokio::time::sleep;
 use tracing::{debug, info, warn};
+
+use crate::llm::{OllamaClient, DEFAULT_MODEL};
 
 /// Extracted content from a manpage.
 #[derive(Debug, Clone)]
@@ -20,6 +24,116 @@ pub struct ManpageContent {
     pub section: String,
     /// Combined NAME and DESCRIPTION text for embedding.
     pub description: String,
+}
+
+/// Manpage entry with embedding vector for storage.
+#[derive(Debug, Clone)]
+pub struct ManpageEntry {
+    /// Tool name (e.g., "ls").
+    pub tool_name: String,
+    /// Section number (e.g., "1").
+    pub section: String,
+    /// Combined NAME and DESCRIPTION text.
+    pub description: String,
+    /// Embedding vector.
+    pub vector: Vec<f32>,
+}
+
+/// Generator for creating embeddings from manpage content.
+#[derive(Debug)]
+pub struct EmbeddingGenerator {
+    /// Ollama client for API calls.
+    client: OllamaClient,
+    /// Model to use for embeddings.
+    model: String,
+}
+
+impl EmbeddingGenerator {
+    /// Creates a new embedding generator with default model.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the client cannot be created.
+    pub fn new() -> Result<Self> {
+        let client = OllamaClient::new()?;
+        Ok(Self {
+            client,
+            model: DEFAULT_MODEL.to_string(),
+        })
+    }
+
+    /// Creates a new embedding generator with custom client and model.
+    #[must_use]
+    pub fn with_client(client: OllamaClient, model: &str) -> Self {
+        Self {
+            client,
+            model: model.to_string(),
+        }
+    }
+
+    /// Generates embeddings for a list of manpage contents.
+    ///
+    /// Processes in batches with progress display and retry logic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if embedding generation fails for any item after retries.
+    pub async fn generate_embeddings(
+        &self,
+        contents: Vec<ManpageContent>,
+    ) -> Result<Vec<ManpageEntry>> {
+        let total = contents.len();
+        let mut entries = Vec::with_capacity(total);
+        let batch_size = 10;
+
+        info!(total = total, "Starting embedding generation");
+
+        for (i, content) in contents.into_iter().enumerate() {
+            // Progress display
+            if i % batch_size == 0 || i == total - 1 {
+                println!("Generating embeddings... {}/{}", i + 1, total);
+            }
+
+            // Generate embedding with retry
+            let vector = self.generate_with_retry(&content.description).await?;
+
+            entries.push(ManpageEntry {
+                tool_name: content.tool_name,
+                section: content.section,
+                description: content.description,
+                vector,
+            });
+        }
+
+        info!(count = entries.len(), "Embedding generation complete");
+        Ok(entries)
+    }
+
+    /// Generates embedding with retry logic.
+    async fn generate_with_retry(&self, text: &str) -> Result<Vec<f32>> {
+        let max_attempts = 3;
+
+        for attempt in 1..=max_attempts {
+            match self.client.generate_embedding(&self.model, text).await {
+                Ok(vector) => return Ok(vector),
+                Err(e) if attempt < max_attempts => {
+                    let delay = Duration::from_secs(2_u64.pow(attempt));
+                    warn!(
+                        attempt = attempt,
+                        delay_secs = delay.as_secs(),
+                        error = %e,
+                        "Embedding generation failed, retrying"
+                    );
+                    sleep(delay).await;
+                }
+                Err(e) => {
+                    return Err(e).context("Embedding generation failed after 3 attempts");
+                }
+            }
+        }
+
+        unreachable!()
+    }
 }
 
 /// Default manpage directories to scan.
