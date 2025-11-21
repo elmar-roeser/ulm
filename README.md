@@ -1,5 +1,9 @@
 # ulm - Der ULMer
 
+[![CI](https://github.com/elmar-roeser/ulm/actions/workflows/ci.yml/badge.svg)](https://github.com/elmar-roeser/ulm/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](LICENSE-MIT)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)](https://www.rust-lang.org/)
+
 AI-powered manpage assistant using local LLM inference.
 
 ## Overview
