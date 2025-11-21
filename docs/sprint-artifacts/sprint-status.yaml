@@ -87,9 +87,9 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Model Selection & Auto-Pull
-  epic-6: backlog
-  6-1-fetch-available-models: backlog
-  6-2-display-model-selection-ui: backlog
-  6-3-model-pull-with-progress: backlog
+  epic-6: contexted
+  6-1-fetch-available-models: done
+  6-2-display-model-selection-ui: done
+  6-3-model-pull-with-progress: review
   6-4-config-storage: backlog
   epic-6-retrospective: optional

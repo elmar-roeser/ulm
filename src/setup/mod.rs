@@ -7,12 +7,17 @@
 
 pub mod index;
 pub mod install;
+pub mod models;
 pub mod ollama;
 
 pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
 pub use install::{
     detect_system, display_status, install_native, start_ollama, wait_for_ollama, InstallResult,
     OllamaStatus, SystemCapabilities,
+};
+pub use models::{
+    display_model_selection, get_available_models, get_system_ram_gb, pull_model_with_progress,
+    PullProgress, RecommendedModel,
 };
 pub use ollama::OllamaChecker;
 

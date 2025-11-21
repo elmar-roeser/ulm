@@ -1,0 +1,103 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>6</epicId>
+    <storyId>1</storyId>
+    <title>Fetch Available Models</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/6-1-fetch-available-models.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>developer</asA>
+    <iWant>to retrieve the list of available Ollama models</iWant>
+    <soThat>I can show users their options</soThat>
+    <tasks>
+      <task id="1">Create setup/models.rs module (AC: 2, 3)</task>
+      <task id="2">Implement get_available_models function (AC: 1, 4)</task>
+      <task id="3">Error handling (AC: 5)</task>
+      <task id="4">Unit tests</task>
+      <task id="5">Verify build (AC: 6, 7)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Query Ollama /api/tags for installed models</criterion>
+    <criterion id="2">System has hardcoded list of recommended models with metadata</criterion>
+    <criterion id="3">Return Vec&lt;ModelInfo&gt; with name, RAM, speed/quality ratings</criterion>
+    <criterion id="4">Mark models as installed: true if present in Ollama tags</criterion>
+    <criterion id="5">Handle Ollama connection errors gracefully</criterion>
+    <criterion id="6">cargo build succeeds without errors</criterion>
+    <criterion id="7">cargo clippy -- -D warnings passes</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-6.md" title="Tech Spec Epic 6" section="Data Models" snippet="ModelInfo struct definition and RECOMMENDED_MODELS constant"/>
+      <doc path="docs/architecture.md" title="Architecture" section="Project Structure" snippet="setup/ module structure"/>
+      <doc path="docs/epics.md" title="Epics" section="Story 6.1" snippet="Fetch Available Models acceptance criteria"/>
+    </docs>
+    <code>
+      <file path="src/llm/ollama.rs" kind="struct" symbol="OllamaClient" lines="17-23" reason="Existing HTTP client to use for API calls"/>
+      <file path="src/llm/ollama.rs" kind="function" symbol="list_models" lines="144-171" reason="Already implements /api/tags call - returns Vec&lt;ModelInfo&gt;"/>
+      <file path="src/llm/ollama.rs" kind="struct" symbol="ModelInfo" lines="69-76" reason="Existing model info struct - NOTE: different from new RecommendedModel struct"/>
+      <file path="src/llm/ollama.rs" kind="struct" symbol="TagsResponse" lines="62-67" reason="Response type for /api/tags"/>
+      <file path="src/setup/mod.rs" kind="module" symbol="" lines="" reason="Export new models module here"/>
+      <file path="src/setup/ollama.rs" kind="service" symbol="OllamaChecker" lines="" reason="Pattern for async Ollama operations"/>
+    </code>
+    <dependencies>
+      <rust>
+        <package name="serde" version="1" features="derive" reason="Serialization for ModelInfo"/>
+        <package name="anyhow" version="1" reason="Error handling with context"/>
+        <package name="reqwest" version="0.12" reason="Already used by OllamaClient"/>
+        <package name="tokio" version="1" features="full" reason="Async runtime"/>
+      </rust>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use existing OllamaClient::list_models() for API calls</constraint>
+    <constraint type="pattern">New ModelInfo struct separate from llm/ollama.rs ModelInfo</constraint>
+    <constraint type="pattern">Use .context() from anyhow for all error chains</constraint>
+    <constraint type="naming">Module: setup/models.rs, Struct: RecommendedModel or ModelSelection</constraint>
+    <constraint type="lint">Must pass cargo clippy -- -D warnings</constraint>
+    <constraint type="lint">No unwrap_used or expect_used</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="OllamaClient" kind="struct" signature="pub struct OllamaClient { client: reqwest::Client, base_url: String }" path="src/llm/ollama.rs"/>
+    <interface name="list_models" kind="async method" signature="pub async fn list_models(&amp;self) -> Result&lt;Vec&lt;ModelInfo&gt;&gt;" path="src/llm/ollama.rs"/>
+    <interface name="TagsResponse" kind="struct" signature="pub struct TagsResponse { pub models: Vec&lt;ModelInfo&gt; }" path="src/llm/ollama.rs"/>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Tests use #[tokio::test] for async tests and standard #[test] for sync tests.
+      Follow existing test patterns in llm/ollama.rs.
+      Target 80% code coverage.
+      Use assert! and assert_eq! macros.
+      Tests at bottom of file in #[cfg(test)] module.
+    </standards>
+    <locations>
+      <location>src/setup/models.rs (unit tests in #[cfg(test)] module)</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test that get_available_models calls list_models</idea>
+      <idea ac="2">Test RECOMMENDED_MODELS has expected entries</idea>
+      <idea ac="3">Test ModelInfo serialization/deserialization</idea>
+      <idea ac="4">Test merge logic marks installed=true correctly</idea>
+      <idea ac="5">Test error handling when Ollama unavailable</idea>
+    </ideas>
+  </tests>
+
+  <keyInsight>
+    OllamaClient::list_models() already exists in src/llm/ollama.rs and returns Vec&lt;ModelInfo&gt; from /api/tags.
+    The new setup/models.rs needs a DIFFERENT struct (e.g., RecommendedModel) with additional fields (ram_gb, speed_rating, quality_rating, installed).
+    The get_available_models() function should:
+    1. Call client.list_models() to get installed models
+    2. Merge with RECOMMENDED_MODELS constant
+    3. Set installed=true for models found in Ollama
+    4. Return the merged list
+  </keyInsight>
+</story-context>

@@ -49,6 +49,9 @@ rustyline = "14"
 # XDG paths
 directories = "5"
 
+# System information
+sysinfo = "0.31"
+
 # Progress bars
 indicatif = "0.17"
 

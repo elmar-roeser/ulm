@@ -1,0 +1,103 @@
+<story-context id=".bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>6</epicId>
+    <storyId>3</storyId>
+    <title>Model Pull with Progress</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-21</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/sprint-artifacts/6-3-model-pull-with-progress.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>user</asA>
+    <iWant>to download my selected model with progress feedback</iWant>
+    <soThat>I know the download status</soThat>
+    <tasks>
+      <task id="1">Implement streaming pull request (AC: 1, 6)</task>
+      <task id="2">Parse streaming response (AC: 2, 3)</task>
+      <task id="3">Display progress bar (AC: 2, 3)</task>
+      <task id="4">Handle special cases (AC: 4, 5)</task>
+      <task id="5">Unit tests</task>
+      <task id="6">Verify build (AC: 7, 8)</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1">Call Ollama /api/pull endpoint with streaming enabled</criterion>
+    <criterion id="2">Display download progress with percentage and speed</criterion>
+    <criterion id="3">Show layer-by-layer progress during download</criterion>
+    <criterion id="4">If model already installed, skip download and confirm ready</criterion>
+    <criterion id="5">Handle network errors gracefully with informative messages</criterion>
+    <criterion id="6">Timeout after 30 minutes for large models</criterion>
+    <criterion id="7">cargo build succeeds without errors</criterion>
+    <criterion id="8">cargo clippy -- -D warnings passes</criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/sprint-artifacts/tech-spec-epic-6.md" title="Tech Spec Epic 6" section="APIs and Interfaces" snippet="POST /api/pull with stream:true, PullProgress struct definition"/>
+      <doc path="docs/architecture.md" title="Architecture" section="Project Structure" snippet="setup/ module structure"/>
+      <doc path="docs/epics.md" title="Epics" section="Story 6.3" snippet="Model Pull with Progress acceptance criteria"/>
+    </docs>
+    <code>
+      <file path="src/setup/models.rs" kind="module" symbol="" lines="" reason="Add pull_model_with_progress function here"/>
+      <file path="src/setup/models.rs" kind="struct" symbol="RecommendedModel" lines="15-27" reason="Check installed field before pulling"/>
+      <file path="src/setup/models.rs" kind="function" symbol="get_available_models" lines="116-142" reason="Returns models with installed status"/>
+      <file path="src/llm/ollama.rs" kind="struct" symbol="OllamaClient" lines="17-23" reason="HTTP client for API calls"/>
+      <file path="src/llm/ollama.rs" kind="function" symbol="pull_model" lines="269-293" reason="Existing non-streaming pull - extend or replace"/>
+    </code>
+    <dependencies>
+      <rust>
+        <package name="reqwest" version="0.12" features="json,stream" reason="Streaming HTTP response"/>
+        <package name="indicatif" version="0.17" reason="Progress bar display - already in Cargo.toml"/>
+        <package name="tokio" version="1" features="full" reason="Async streaming"/>
+        <package name="serde" version="1" features="derive" reason="PullProgress deserialization"/>
+        <package name="anyhow" version="1" reason="Error handling"/>
+      </rust>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="pattern">Use reqwest streaming response for /api/pull</constraint>
+    <constraint type="pattern">Parse newline-delimited JSON (JSON lines)</constraint>
+    <constraint type="pattern">Use indicatif ProgressBar for visual feedback</constraint>
+    <constraint type="pattern">Use .context() from anyhow for all error chains</constraint>
+    <constraint type="timeout">30 minute timeout for large model downloads</constraint>
+    <constraint type="lint">Must pass cargo clippy -- -D warnings</constraint>
+    <constraint type="lint">No unwrap_used or expect_used</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface name="OllamaClient" kind="struct" signature="pub struct OllamaClient { client: reqwest::Client, base_url: String }" path="src/llm/ollama.rs"/>
+    <interface name="pull_model_with_progress" kind="async function" signature="pub async fn pull_model_with_progress(client: &amp;OllamaClient, model_name: &amp;str) -> Result&lt;()&gt;" path="src/setup/models.rs"/>
+    <interface name="PullProgress" kind="struct" signature="pub struct PullProgress { status: String, digest: Option&lt;String&gt;, total: Option&lt;u64&gt;, completed: Option&lt;u64&gt; }" path="src/setup/models.rs"/>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Tests use #[tokio::test] for async tests and standard #[test] for sync tests.
+      Follow existing test patterns in setup/models.rs.
+      Target 80% code coverage.
+      Use assert! and assert_eq! macros.
+      Tests at bottom of file in #[cfg(test)] module.
+    </standards>
+    <locations>
+      <location>src/setup/models.rs (unit tests in #[cfg(test)] module)</location>
+    </locations>
+    <ideas>
+      <idea ac="1">Test PullProgress struct deserialization from JSON</idea>
+      <idea ac="2">Test progress percentage calculation</idea>
+      <idea ac="3">Test parsing multiple JSON lines</idea>
+      <idea ac="4">Test skip logic when model already installed</idea>
+      <idea ac="5">Test error message formatting</idea>
+    </ideas>
+  </tests>
+
+  <keyInsight>
+    OllamaClient already has pull_model() in src/llm/ollama.rs (lines 269-293) but it doesn't stream progress.
+    This story adds pull_model_with_progress() that streams JSON lines and displays progress via indicatif.
+    Key pattern: reqwest response.bytes_stream() + tokio_util::io::StreamReader for async streaming.
+    Check model.installed before pulling to skip unnecessary downloads.
+  </keyInsight>
+</story-context>
