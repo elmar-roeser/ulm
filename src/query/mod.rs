@@ -1,19 +1,8 @@
-//! Query processing and orchestration.
+//! Query processing and intelligence.
 //!
-//! This module handles query processing including:
-//! - Vector search against the manpage index
-//! - Directory context scanning
-//! - Context building for LLM prompts
+//! This module handles user queries by combining semantic search,
+//! directory context awareness, and LLM-powered response generation.
 
-// Submodules (to be implemented in Epic 3)
-// pub mod search;
-// pub mod context;
+pub mod search;
 
-/// Placeholder for query orchestration.
-///
-/// Will be implemented in Story 3.7: Query Orchestration.
-#[derive(Debug)]
-pub struct QueryOrchestrator {
-    /// Placeholder field.
-    _placeholder: (),
-}
+pub use search::{search_tools, SearchMatch};
