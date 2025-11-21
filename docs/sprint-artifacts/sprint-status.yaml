@@ -40,7 +40,7 @@ development_status:
   epic-1: contexted
   1-1-project-initialization: done
   1-2-module-structure-setup: done
-  1-3-cli-argument-parsing: backlog
+  1-3-cli-argument-parsing: done
   1-4-error-handling-infrastructure: backlog
   epic-1-retrospective: optional
 

@@ -1,0 +1,106 @@
+//! Integration tests for CLI argument parsing.
+
+use assert_cmd::Command;
+use predicates::prelude::*;
+
+/// Get a command for the ulm binary.
+fn ulm() -> Command {
+    Command::cargo_bin("ulm").expect("Failed to find ulm binary")
+}
+
+#[test]
+fn test_help_flag() {
+    ulm()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("transforms CLI interaction"))
+        .stdout(predicate::str::contains("setup"))
+        .stdout(predicate::str::contains("update"));
+}
+
+#[test]
+fn test_version_flag() {
+    ulm()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ulm"))
+        .stdout(predicate::str::contains("0.1.0"));
+}
+
+#[test]
+fn test_setup_subcommand() {
+    ulm()
+        .arg("setup")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Running setup"));
+}
+
+#[test]
+fn test_update_subcommand() {
+    ulm()
+        .arg("update")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Running update"));
+}
+
+#[test]
+fn test_query_string_capture() {
+    ulm()
+        .args(["find", "large", "files"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Query: find large files"));
+}
+
+#[test]
+fn test_query_with_quotes() {
+    ulm()
+        .arg("find large files in current directory")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Query: find large files in current directory",
+        ));
+}
+
+#[test]
+fn test_no_args_shows_help_message() {
+    ulm()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "ulm - AI-powered manpage assistant",
+        ))
+        .stdout(predicate::str::contains("--help"));
+}
+
+#[test]
+fn test_invalid_subcommand() {
+    ulm()
+        .arg("invalid-command")
+        .assert()
+        .success() // It treats it as a query
+        .stdout(predicate::str::contains("Query: invalid-command"));
+}
+
+#[test]
+fn test_help_short_flag() {
+    ulm()
+        .arg("-h")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("AI-powered manpage assistant"));
+}
+
+#[test]
+fn test_version_short_flag() {
+    ulm()
+        .arg("-V")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0.1.0"));
+}
