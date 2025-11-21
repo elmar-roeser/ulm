@@ -16,8 +16,9 @@ This document provides the complete epic and story breakdown for ulm, decomposin
 - Epic 3: Query & Intelligence (7 stories)
 - Epic 4: Interactive Experience (8 stories)
 - Epic 5: Auto-Installation (3 stories)
+- Epic 6: Model Selection & Auto-Pull (4 stories)
 
-**Total: 30 stories**
+**Total: 34 stories**
 
 ---
 
@@ -1158,10 +1159,134 @@ docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 
 ---
 
+## Epic 6: Model Selection & Auto-Pull
+
+**Goal:** Allow users to choose their preferred LLM model during setup with automatic download.
+
+**User Value:** User gets optimal model for their hardware without manual `ollama pull` commands.
+
+**FRs Covered:** FR41-FR44
+
+---
+
+### Story 6.1: Fetch Available Models
+
+As a developer,
+I want to retrieve the list of available Ollama models,
+So that I can show users their options.
+
+**Acceptance Criteria:**
+
+**Given** Ollama is running
+**When** fetching model list
+**Then** system queries /api/tags for installed models
+**And** system has hardcoded list of recommended models
+
+**And** recommended models include:
+- llama3.2:3b (~4GB RAM)
+- mistral:7b (~6GB RAM)
+- llama3.1:8b (~8GB RAM)
+- phi3:mini (~3GB RAM)
+
+**Prerequisites:** Story 5.1
+
+**Technical Notes:**
+- Implement in setup/models.rs
+- Use existing OllamaClient for API calls
+- Hardcode recommended list with metadata
+
+---
+
+### Story 6.2: Display Model Selection UI
+
+As a user,
+I want to see available models with RAM requirements,
+So that I can choose one suitable for my system.
+
+**Acceptance Criteria:**
+
+**Given** user runs `ulm setup`
+**When** model selection step reached
+**Then** displays table of models with:
+- Model name
+- RAM requirement
+- Speed/Quality rating
+- [Installed] marker if present
+
+**And** highlights recommended model for detected RAM
+**And** user can select with number key
+
+**Prerequisites:** Story 6.1
+
+**Technical Notes:**
+- Simple terminal table (no TUI needed)
+- Detect system RAM via sysinfo crate
+- Default selection based on available RAM
+
+---
+
+### Story 6.3: Model Pull with Progress
+
+As a user,
+I want to download my selected model with progress feedback,
+So that I know the download status.
+
+**Acceptance Criteria:**
+
+**Given** user selects a model not yet installed
+**When** pull proceeds
+**Then** calls Ollama /api/pull endpoint
+**And** displays download progress (percentage, speed)
+**And** shows layer-by-layer progress
+
+**Given** model already installed
+**When** user selects it
+**Then** skips download, confirms ready
+
+**And** handles network errors with retry option
+**And** timeout after 30 minutes for large models
+
+**Prerequisites:** Story 6.2
+
+**Technical Notes:**
+- Use streaming response from /api/pull
+- Parse JSON lines for progress updates
+- indicatif crate for progress bar
+
+---
+
+### Story 6.4: Config Storage
+
+As a user,
+I want my model choice saved,
+So that ulm uses it for all future queries.
+
+**Acceptance Criteria:**
+
+**Given** user completes model selection
+**When** setup finishes
+**Then** saves model name to config file
+**And** config stored at ~/.config/ulm/config.toml
+
+**Given** config exists
+**When** ulm queries Ollama
+**Then** uses configured model name
+
+**And** user can override with --model flag (future)
+
+**Prerequisites:** Story 6.3
+
+**Technical Notes:**
+- Use toml crate for config
+- directories crate for XDG paths
+- Simple struct: model_name, ollama_url
+
+---
+
 ## Summary
 
-**Total Epics:** 5
-**Total Stories:** 30
+**Total Epics:** 6
+**Total Stories:** 34
 
 | Epic | Stories | FRs Covered |
 |------|---------|-------------|
@@ -1170,11 +1295,13 @@ docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 | Epic 3: Query & Intelligence | 7 | FR13-26 |
 | Epic 4: Interactive Experience | 8 | FR27-40 |
 | Epic 5: Auto-Installation | 3 | FR3, FR5 (enhanced) |
+| Epic 6: Model Selection & Auto-Pull | 4 | FR41-FR44 |
 
 **Context Incorporated:**
-- ✅ PRD requirements (40 FRs)
+- ✅ PRD requirements (44 FRs)
 - ✅ Architecture technical decisions
 - ✅ v0.2.0 enhancement for seamless setup
+- ✅ v0.3.0 model selection and auto-pull
 
 **Next Steps:**
 - Ready for Phase 4: Sprint Planning

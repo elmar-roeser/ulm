@@ -252,6 +252,13 @@ The system doesn't just answer questions - it understands WHERE the question is 
 - **FR39:** System handles missing manpages gracefully
 - **FR40:** System reports if no relevant tools found for query
 
+### Model Management
+
+- **FR41:** Setup displays list of recommended LLM models with RAM requirements
+- **FR42:** User can select preferred model from list during setup
+- **FR43:** Setup pulls selected model with progress indicator
+- **FR44:** Selected model is saved as default for future queries
+
 ---
 
 ## Non-Functional Requirements

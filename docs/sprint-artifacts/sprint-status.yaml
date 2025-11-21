@@ -85,3 +85,11 @@ development_status:
   5-2-native-ollama-installation: done
   5-3-docker-ollama-installation: review
   epic-5-retrospective: optional
+
+  # Epic 6: Model Selection & Auto-Pull
+  epic-6: backlog
+  6-1-fetch-available-models: backlog
+  6-2-display-model-selection-ui: backlog
+  6-3-model-pull-with-progress: backlog
+  6-4-config-storage: backlog
+  epic-6-retrospective: optional
