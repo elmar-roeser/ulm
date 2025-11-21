@@ -68,8 +68,8 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Interactive Experience
-  epic-4: backlog
-  4-1-tui-renderer: backlog
+  epic-4: contexted
+  4-1-tui-renderer: done
   4-2-event-loop-navigation: backlog
   4-3-execute-action: backlog
   4-4-copy-action: backlog
