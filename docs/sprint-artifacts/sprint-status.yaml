@@ -64,7 +64,7 @@ development_status:
   3-4-context-builder: done
   3-5-prompt-builder: done
   3-6-llm-response-parser: done
-  3-7-query-orchestration: backlog
+  3-7-query-orchestration: done
   epic-3-retrospective: optional
 
   # Epic 4: Interactive Experience
