@@ -73,7 +73,7 @@ development_status:
   4-2-event-loop-navigation: done
   4-3-execute-action: done
   4-4-copy-action: done
-  4-5-edit-action: backlog
+  4-5-edit-action: done
   4-6-abort-action: backlog
   4-7-error-display: backlog
   4-8-tui-orchestration: backlog
