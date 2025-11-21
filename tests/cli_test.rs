@@ -1,5 +1,7 @@
 //! Integration tests for CLI argument parsing.
 
+use std::time::Duration;
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 
@@ -31,20 +33,28 @@ fn test_version_flag() {
 
 #[test]
 fn test_setup_subcommand() {
+    // Setup requires Ollama to be running, so we just check it starts correctly
+    // Use timeout since it will fail waiting for Ollama
     ulm()
         .arg("setup")
+        .timeout(Duration::from_secs(5))
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Running setup"));
+        .stdout(predicate::str::contains(
+            "ulm setup - Initializing manpage index",
+        ));
 }
 
 #[test]
 fn test_update_subcommand() {
+    // Update processes all manpages which takes time, just check it starts
+    // Use timeout since full processing takes too long
     ulm()
         .arg("update")
+        .timeout(Duration::from_secs(5))
         .assert()
-        .success()
-        .stdout(predicate::str::contains("Running update"));
+        .stdout(predicate::str::contains(
+            "ulm update - Refreshing manpage index",
+        ));
 }
 
 #[test]

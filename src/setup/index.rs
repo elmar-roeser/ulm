@@ -352,9 +352,14 @@ impl ManpageScanner {
             }
         }
 
-        // Limit total length
+        // Limit total length (handle UTF-8 boundaries)
         if result.len() > 500 {
-            result.truncate(500);
+            // Find last valid char boundary at or before 500
+            let mut end = 500;
+            while !result.is_char_boundary(end) && end > 0 {
+                end -= 1;
+            }
+            result.truncate(end);
             result.push_str("...");
         }
 

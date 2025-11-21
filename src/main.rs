@@ -9,6 +9,7 @@ use std::process::ExitCode;
 use tracing::{debug, error, info};
 use tracing_subscriber::EnvFilter;
 use ulm::cli::{Args, Commands};
+use ulm::setup;
 use ulm::Result;
 
 /// Application entry point.
@@ -27,8 +28,20 @@ fn main() -> ExitCode {
 
     debug!("ulm starting");
 
+    // Create tokio runtime for async operations
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Error: Failed to create tokio runtime: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     // Run the application and handle errors
-    match run() {
+    match runtime.block_on(run()) {
         Ok(()) => {
             debug!("ulm completed successfully");
             ExitCode::SUCCESS
@@ -46,8 +59,7 @@ fn main() -> ExitCode {
 /// # Errors
 ///
 /// Returns an error if any part of the application fails.
-#[allow(clippy::unnecessary_wraps)] // Will return errors in Epic 2+
-fn run() -> Result<()> {
+async fn run() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse_args();
     debug!(?args, "parsed arguments");
@@ -56,13 +68,11 @@ fn run() -> Result<()> {
     match args.command {
         Some(Commands::Setup) => {
             info!("running setup");
-            println!("Running setup...");
-            // Placeholder: Will be implemented in Epic 2
+            setup::run_setup().await?;
         }
         Some(Commands::Update) => {
             info!("running update");
-            println!("Running update...");
-            // Placeholder: Will be implemented in Epic 2
+            setup::run_update().await?;
         }
         None => {
             if args.has_query() {
