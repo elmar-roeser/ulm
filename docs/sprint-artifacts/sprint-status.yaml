@@ -71,7 +71,7 @@ development_status:
   epic-4: contexted
   4-1-tui-renderer: done
   4-2-event-loop-navigation: done
-  4-3-execute-action: backlog
+  4-3-execute-action: done
   4-4-copy-action: backlog
   4-5-edit-action: backlog
   4-6-abort-action: backlog
