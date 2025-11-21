@@ -1,6 +1,6 @@
 # Story 5.3: Docker Ollama Installation
 
-Status: review
+Status: done
 
 ## Story
 

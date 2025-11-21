@@ -83,7 +83,7 @@ development_status:
   epic-5: contexted
   5-1-ollama-detection-status: done
   5-2-native-ollama-installation: done
-  5-3-docker-ollama-installation: review
+  5-3-docker-ollama-installation: done
   epic-5-retrospective: optional
 
   # Epic 6: Model Selection & Auto-Pull
