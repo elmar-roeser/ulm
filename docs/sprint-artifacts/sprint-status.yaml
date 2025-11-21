@@ -60,7 +60,7 @@ development_status:
   epic-3: contexted
   3-1-vector-search: done
   3-2-manpage-content-loading: done
-  3-3-directory-context-scanner: backlog
+  3-3-directory-context-scanner: done
   3-4-context-builder: backlog
   3-5-prompt-builder: backlog
   3-6-llm-response-parser: backlog
