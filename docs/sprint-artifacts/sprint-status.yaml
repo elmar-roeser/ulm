@@ -75,6 +75,6 @@ development_status:
   4-4-copy-action: done
   4-5-edit-action: done
   4-6-abort-action: done
-  4-7-error-display: backlog
+  4-7-error-display: done
   4-8-tui-orchestration: backlog
   epic-4-retrospective: optional

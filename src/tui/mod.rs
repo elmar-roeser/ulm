@@ -3,8 +3,11 @@
 //! This module provides an interactive TUI for displaying, navigating,
 //! and acting on command suggestions.
 
+pub mod error;
 pub mod input;
 pub mod render;
+
+pub use error::display_error;
 
 use std::io;
 
