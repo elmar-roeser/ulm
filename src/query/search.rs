@@ -3,11 +3,16 @@
 //! This module provides semantic search functionality using the manpage
 //! embedding index to find tools relevant to user queries.
 
+use std::process::Command;
+
 use anyhow::{Context, Result};
 use tracing::{debug, info};
 
 use crate::db;
 use crate::llm::{OllamaClient, DEFAULT_MODEL};
+
+/// Maximum characters to include in manpage content for LLM context.
+const MAX_CONTENT_LENGTH: usize = 8000;
 
 /// A search result matching a user query.
 #[derive(Debug, Clone)]
@@ -87,6 +92,120 @@ pub async fn search_tools(query: &str, limit: usize) -> Result<Vec<SearchMatch>>
     }
 
     Ok(matches)
+}
+
+/// Loads the full content of a manpage.
+///
+/// Runs `man -P cat <tool>` to get the raw manpage content, cleans
+/// escape sequences, and truncates to fit LLM context limits.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The manpage doesn't exist
+/// - The man command fails
+/// - Output contains invalid UTF-8
+pub fn load_manpage_content(tool_name: &str) -> Result<String> {
+    debug!(tool = %tool_name, "Loading manpage content");
+
+    // Run man -P cat to get raw content
+    let output = Command::new("man")
+        .args(["-P", "cat", tool_name])
+        .output()
+        .with_context(|| format!("Failed to execute man command for '{tool_name}'"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Manpage for '{}' not found: {}", tool_name, stderr.trim());
+    }
+
+    // Convert to UTF-8
+    let content = String::from_utf8(output.stdout)
+        .with_context(|| format!("Manpage '{tool_name}' contains invalid UTF-8"))?;
+
+    // Clean escape sequences
+    let cleaned = clean_escape_sequences(&content);
+
+    // Truncate to max length
+    let truncated = truncate_content(&cleaned, MAX_CONTENT_LENGTH);
+
+    debug!(
+        original_len = content.len(),
+        cleaned_len = cleaned.len(),
+        final_len = truncated.len(),
+        "Loaded manpage content"
+    );
+
+    Ok(truncated)
+}
+
+/// Removes ANSI escape sequences from text.
+fn clean_escape_sequences(text: &str) -> String {
+    // Simple approach: remove common escape patterns
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                              // Skip until we hit a letter (end of sequence)
+                while let Some(&next) = chars.peek() {
+                    chars.next();
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    // Normalize whitespace: collapse multiple spaces/newlines
+    let mut normalized = String::with_capacity(result.len());
+    let mut prev_whitespace = false;
+    let mut prev_newline = false;
+
+    for c in result.chars() {
+        if c == '\n' {
+            if !prev_newline {
+                normalized.push('\n');
+                prev_newline = true;
+            }
+            prev_whitespace = true;
+        } else if c.is_whitespace() {
+            if !prev_whitespace {
+                normalized.push(' ');
+                prev_whitespace = true;
+            }
+            prev_newline = false;
+        } else {
+            normalized.push(c);
+            prev_whitespace = false;
+            prev_newline = false;
+        }
+    }
+
+    normalized
+}
+
+/// Truncates content to maximum length, respecting UTF-8 boundaries.
+fn truncate_content(text: &str, max_len: usize) -> String {
+    if text.len() <= max_len {
+        return text.to_string();
+    }
+
+    // Find last valid char boundary
+    let mut end = max_len;
+    while !text.is_char_boundary(end) && end > 0 {
+        end -= 1;
+    }
+
+    let mut result = text[..end].to_string();
+    result.push_str("\n\n[Content truncated...]");
+    result
 }
 
 #[cfg(test)]

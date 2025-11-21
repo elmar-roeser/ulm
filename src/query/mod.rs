@@ -5,4 +5,4 @@
 
 pub mod search;
 
-pub use search::{search_tools, SearchMatch};
+pub use search::{load_manpage_content, search_tools, SearchMatch};
