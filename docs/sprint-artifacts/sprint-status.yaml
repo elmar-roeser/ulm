@@ -78,3 +78,10 @@ development_status:
   4-7-error-display: done
   4-8-tui-orchestration: done
   epic-4-retrospective: optional
+
+  # Epic 5: Auto-Installation
+  epic-5: backlog
+  5-1-ollama-detection-status: backlog
+  5-2-native-ollama-installation: backlog
+  5-3-docker-ollama-installation: backlog
+  epic-5-retrospective: optional

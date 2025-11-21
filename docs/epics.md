@@ -15,8 +15,9 @@ This document provides the complete epic and story breakdown for ulm, decomposin
 - Epic 2: Setup & Knowledge Base (8 stories)
 - Epic 3: Query & Intelligence (7 stories)
 - Epic 4: Interactive Experience (8 stories)
+- Epic 5: Auto-Installation (3 stories)
 
-**Total: 27 stories**
+**Total: 30 stories**
 
 ---
 
@@ -41,6 +42,7 @@ This document provides the complete epic and story breakdown for ulm, decomposin
 | Epic 2: Setup & Knowledge Base | FR1-12 | 8 |
 | Epic 3: Query & Intelligence | FR13-26 | 7 |
 | Epic 4: Interactive Experience | FR27-40 | 8 |
+| Epic 5: Auto-Installation | FR3, FR5 (enhanced) | 3 |
 
 ---
 
@@ -1042,10 +1044,124 @@ So that I have a smooth interactive experience.
 
 ---
 
+## Epic 5: Auto-Installation
+
+**Goal:** Provide seamless Ollama installation as part of setup, eliminating manual installation steps.
+
+**User Value:** User can go from zero to working ulm with a single `ulm setup` command.
+
+**FRs Covered:** FR3 (enhanced), FR5 (enhanced)
+
+---
+
+### Story 5.1: Ollama Detection & Status
+
+As a user,
+I want setup to detect my current Ollama installation status,
+So that it can guide me appropriately.
+
+**Acceptance Criteria:**
+
+**Given** user runs `ulm setup`
+**When** checking Ollama status
+**Then** system detects one of:
+- Ollama running and accessible
+- Ollama installed but not running
+- Ollama not installed
+- Docker available (alternative)
+
+**And** reports current status clearly
+**And** suggests appropriate next action
+
+**Prerequisites:** None
+
+**Technical Notes:**
+- Check localhost:11434 for running Ollama
+- Check `which ollama` for installed binary
+- Check `which docker` for Docker availability
+- Implement in setup/install.rs
+
+---
+
+### Story 5.2: Native Ollama Installation
+
+As a user,
+I want to install Ollama natively via the official installer,
+So that I get optimal performance.
+
+**Acceptance Criteria:**
+
+**Given** Ollama not installed and user chooses native install
+**When** installation proceeds
+**Then** runs appropriate installer:
+- Linux: `curl -fsSL https://ollama.com/install.sh | sh`
+- macOS: `brew install ollama` or curl fallback
+
+**And** requests sudo if needed (with explanation)
+**And** verifies installation succeeded
+**And** starts Ollama service
+**And** reports success or failure with next steps
+
+**Given** installation fails
+**When** error occurs
+**Then** provides clear error message
+**And** suggests manual installation URL
+**And** offers Docker as alternative
+
+**Prerequisites:** Story 5.1
+
+**Technical Notes:**
+- Use std::process::Command for shell execution
+- Detect OS via std::env::consts::OS
+- Handle permission errors gracefully
+- Timeout after 5 minutes
+
+---
+
+### Story 5.3: Docker Ollama Installation
+
+As a user,
+I want to run Ollama in Docker,
+So that I can use it without system-wide installation.
+
+**Acceptance Criteria:**
+
+**Given** user chooses Docker installation
+**When** Docker is available
+**Then** runs:
+```
+docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+```
+
+**And** waits for container to be healthy
+**And** verifies API is accessible
+**And** reports success with container info
+
+**Given** Docker not available
+**When** user chooses Docker option
+**Then** reports Docker not found
+**And** suggests Docker installation
+**And** offers native install as alternative
+
+**Given** container already exists
+**When** installation proceeds
+**Then** offers to restart existing container
+**Or** remove and recreate
+
+**Prerequisites:** Story 5.1
+
+**Technical Notes:**
+- Check docker daemon running
+- Handle port conflicts (11434 in use)
+- Volume mount for persistence
+- Health check with timeout
+
+---
+
 ## Summary
 
-**Total Epics:** 4
-**Total Stories:** 27
+**Total Epics:** 5
+**Total Stories:** 30
 
 | Epic | Stories | FRs Covered |
 |------|---------|-------------|
@@ -1053,10 +1169,12 @@ So that I have a smooth interactive experience.
 | Epic 2: Setup & Knowledge Base | 8 | FR1-12 |
 | Epic 3: Query & Intelligence | 7 | FR13-26 |
 | Epic 4: Interactive Experience | 8 | FR27-40 |
+| Epic 5: Auto-Installation | 3 | FR3, FR5 (enhanced) |
 
 **Context Incorporated:**
 - ✅ PRD requirements (40 FRs)
 - ✅ Architecture technical decisions
+- ✅ v0.2.0 enhancement for seamless setup
 
 **Next Steps:**
 - Ready for Phase 4: Sprint Planning
