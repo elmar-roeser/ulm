@@ -7,9 +7,13 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use futures::stream::{self, StreamExt};
+use indicatif::{ProgressBar, ProgressStyle};
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
@@ -73,7 +77,7 @@ impl EmbeddingGenerator {
 
     /// Generates embeddings for a list of manpage contents.
     ///
-    /// Processes in batches with progress display and retry logic.
+    /// Processes concurrently with progress display and retry logic.
     ///
     /// # Errors
     ///
@@ -83,30 +87,117 @@ impl EmbeddingGenerator {
         contents: Vec<ManpageContent>,
     ) -> Result<Vec<ManpageEntry>> {
         let total = contents.len();
-        let mut entries = Vec::with_capacity(total);
-        let batch_size = 10;
+        let concurrency = 10; // Process 10 embeddings concurrently
 
-        info!(total = total, "Starting embedding generation");
+        info!(
+            total = total,
+            concurrency = concurrency,
+            "Starting parallel embedding generation"
+        );
 
-        for (i, content) in contents.into_iter().enumerate() {
-            // Progress display
-            if i % batch_size == 0 || i == total - 1 {
-                println!("Generating embeddings... {}/{}", i + 1, total);
+        // Setup progress bar
+        let pb = ProgressBar::new(total as u64);
+        let style = ProgressStyle::default_bar()
+            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)")
+            .context("Invalid progress bar template")?
+            .progress_chars("#>-");
+        pb.set_style(style);
+
+        let completed = Arc::new(AtomicUsize::new(0));
+        let failed_items = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+
+        // Process embeddings concurrently
+        let results: Vec<Option<ManpageEntry>> = stream::iter(contents.into_iter().enumerate())
+            .map(|(idx, content)| {
+                let client = self.client.clone();
+                let model = self.model.clone();
+                let pb = pb.clone();
+                let completed = Arc::clone(&completed);
+                let failed_items = Arc::clone(&failed_items);
+
+                async move {
+                    let result = Self::generate_single(&client, &model, &content).await;
+
+                    let count = completed.fetch_add(1, Ordering::SeqCst) + 1;
+                    pb.set_position(count as u64);
+
+                    match result {
+                        Ok(entry) => Some(entry),
+                        Err(e) => {
+                            warn!(idx = idx, error = %e, "Failed to generate embedding, will retry");
+                            failed_items.lock().await.push((idx, content));
+                            None
+                        }
+                    }
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect()
+            .await;
+
+        pb.finish_with_message("Initial pass complete");
+
+        // Collect successful results
+        let mut entries: Vec<ManpageEntry> = results.into_iter().flatten().collect();
+
+        // Retry failed items sequentially
+        let failed = failed_items.lock().await;
+        if !failed.is_empty() {
+            info!(
+                count = failed.len(),
+                "Retrying failed embeddings sequentially"
+            );
+            println!("\nRetrying {} failed embeddings...", failed.len());
+
+            for (idx, content) in failed.iter() {
+                match self.generate_with_retry(&content.description).await {
+                    Ok(vector) => {
+                        entries.push(ManpageEntry {
+                            tool_name: content.tool_name.clone(),
+                            section: content.section.clone(),
+                            description: content.description.clone(),
+                            vector,
+                        });
+                    }
+                    Err(e) => {
+                        warn!(idx = idx, tool = %content.tool_name, error = %e, "Final retry failed");
+                        // Continue with other items instead of failing completely
+                    }
+                }
             }
-
-            // Generate embedding with retry
-            let vector = self.generate_with_retry(&content.description).await?;
-
-            entries.push(ManpageEntry {
-                tool_name: content.tool_name,
-                section: content.section,
-                description: content.description,
-                vector,
-            });
         }
 
         info!(count = entries.len(), "Embedding generation complete");
         Ok(entries)
+    }
+
+    /// Generates a single embedding with basic retry.
+    async fn generate_single(
+        client: &OllamaClient,
+        model: &str,
+        content: &ManpageContent,
+    ) -> Result<ManpageEntry> {
+        let max_attempts = 2;
+
+        for attempt in 1..=max_attempts {
+            match client.generate_embedding(model, &content.description).await {
+                Ok(vector) => {
+                    return Ok(ManpageEntry {
+                        tool_name: content.tool_name.clone(),
+                        section: content.section.clone(),
+                        description: content.description.clone(),
+                        vector,
+                    });
+                }
+                Err(e) if attempt < max_attempts => {
+                    sleep(Duration::from_millis(500)).await;
+                    debug!(attempt = attempt, error = %e, "Quick retry");
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        unreachable!()
     }
 
     /// Generates embedding with retry logic.
