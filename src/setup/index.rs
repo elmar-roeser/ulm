@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
-use crate::llm::{OllamaClient, DEFAULT_MODEL};
+use crate::llm::{OllamaClient, EMBEDDING_MODEL};
 
 /// Extracted content from a manpage.
 #[derive(Debug, Clone)]
@@ -58,7 +58,7 @@ impl EmbeddingGenerator {
         let client = OllamaClient::new()?;
         Ok(Self {
             client,
-            model: DEFAULT_MODEL.to_string(),
+            model: EMBEDDING_MODEL.to_string(),
         })
     }
 

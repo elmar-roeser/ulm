@@ -27,7 +27,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::db;
-use crate::llm::OllamaClient;
+use crate::llm::{OllamaClient, EMBEDDING_MODEL};
 
 /// Runs the complete setup process.
 ///
@@ -42,6 +42,7 @@ use crate::llm::OllamaClient;
 /// # Errors
 ///
 /// Returns an error if any step fails.
+#[allow(clippy::too_many_lines)]
 pub async fn run_setup() -> Result<()> {
     println!("ulm setup - Initializing manpage index\n");
 
@@ -126,6 +127,26 @@ pub async fn run_setup() -> Result<()> {
             .await
             .context("Failed to pull model")?;
         println!("✓ Model '{}' downloaded\n", selected_model.name);
+    }
+
+    // Pull embedding model if not installed
+    println!("Checking embedding model...");
+    let installed_models = client
+        .list_models()
+        .await
+        .context("Failed to get installed models")?;
+    let embedding_installed = installed_models
+        .iter()
+        .any(|m| m.name.starts_with(EMBEDDING_MODEL));
+
+    if embedding_installed {
+        println!("✓ Embedding model '{EMBEDDING_MODEL}' already installed\n");
+    } else {
+        println!("Downloading embedding model {EMBEDDING_MODEL}...");
+        pull_model_with_progress(&client, EMBEDDING_MODEL)
+            .await
+            .context("Failed to pull embedding model")?;
+        println!("✓ Embedding model '{EMBEDDING_MODEL}' downloaded\n");
     }
 
     // Save configuration

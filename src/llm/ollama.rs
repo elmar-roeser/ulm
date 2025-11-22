@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 /// Default Ollama API base URL.
 pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 
-/// Default model for embeddings and generation.
+/// Default model for text generation.
 pub const DEFAULT_MODEL: &str = "llama3";
+
+/// Default model for embeddings (small, efficient).
+pub const EMBEDDING_MODEL: &str = "nomic-embed-text";
 
 /// Client for interacting with Ollama API.
 #[derive(Debug, Clone)]

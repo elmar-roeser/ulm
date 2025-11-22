@@ -9,6 +9,6 @@ pub mod ollama;
 pub mod prompt;
 pub mod response;
 
-pub use ollama::{OllamaClient, DEFAULT_MODEL, DEFAULT_OLLAMA_URL};
+pub use ollama::{OllamaClient, DEFAULT_MODEL, DEFAULT_OLLAMA_URL, EMBEDDING_MODEL};
 pub use prompt::build_prompt;
 pub use response::{parse_suggestions, CommandSuggestion, RiskLevel};
