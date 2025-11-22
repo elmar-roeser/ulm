@@ -200,6 +200,8 @@ pub async fn run_update() -> Result<()> {
 
 /// Runs the indexing steps (shared between setup and update).
 ///
+/// Uses pipelined processing: extraction and embedding run in parallel.
+///
 /// # Errors
 ///
 /// Returns an error if any step fails.
@@ -218,43 +220,12 @@ async fn run_indexing() -> Result<usize> {
         return Ok(0);
     }
 
-    // Step 4: Extract descriptions
-    println!("Extracting descriptions...");
-    let mut contents = Vec::with_capacity(total_paths);
-    let mut errors = 0;
+    // Steps 4-5: Extract and embed in pipeline
+    println!("Extracting and generating embeddings (pipelined)...");
 
-    for (i, path) in paths.iter().enumerate() {
-        // Progress every 100 items
-        if i % 100 == 0 || i == total_paths - 1 {
-            print!("\r  Extracting... {}/{}", i + 1, total_paths);
-            std::io::Write::flush(&mut std::io::stdout()).ok();
-        }
-
-        match ManpageScanner::extract_content(path) {
-            Ok(content) => contents.push(content),
-            Err(e) => {
-                errors += 1;
-                tracing::debug!(path = ?path, error = %e, "Failed to extract content");
-            }
-        }
-    }
-    println!();
-
-    if errors > 0 {
-        println!("  (Skipped {errors} malformed manpages)");
-    }
-    println!("✓ Extracted {} descriptions\n", contents.len());
-
-    if contents.is_empty() {
-        println!("No descriptions extracted. Cannot proceed with indexing.");
-        return Ok(0);
-    }
-
-    // Step 5: Generate embeddings
-    println!("Generating embeddings...");
     let generator = EmbeddingGenerator::new().context("Failed to create embedding generator")?;
     let entries = generator
-        .generate_embeddings(contents)
+        .generate_embeddings_pipelined(paths)
         .await
         .context("Failed to generate embeddings")?;
 

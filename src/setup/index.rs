@@ -13,7 +13,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use futures::stream::{self, StreamExt};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
@@ -224,6 +225,150 @@ impl EmbeddingGenerator {
         }
 
         unreachable!()
+    }
+
+    /// Generates embeddings with pipelined extraction.
+    ///
+    /// Extracts manpages and generates embeddings concurrently using channels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if embedding generation fails.
+    #[allow(clippy::too_many_lines)]
+    pub async fn generate_embeddings_pipelined(
+        &self,
+        paths: Vec<PathBuf>,
+    ) -> Result<Vec<ManpageEntry>> {
+        let total = paths.len();
+        let concurrency = 10;
+        let channel_size = 100;
+
+        info!(
+            total = total,
+            concurrency = concurrency,
+            "Starting pipelined extraction and embedding"
+        );
+
+        // Setup progress bars
+        let mp = MultiProgress::new();
+        let extract_style = ProgressStyle::default_bar()
+            .template("{prefix:.bold} [{bar:30.yellow/blue}] {pos}/{len}")
+            .context("Invalid extract progress bar template")?
+            .progress_chars("=>-");
+        let embed_style = ProgressStyle::default_bar()
+            .template("{prefix:.bold} [{bar:30.green/blue}] {pos}/{len}")
+            .context("Invalid embed progress bar template")?
+            .progress_chars("#>-");
+
+        let extract_pb = mp.add(ProgressBar::new(total as u64));
+        extract_pb.set_style(extract_style);
+        extract_pb.set_prefix("Extract");
+
+        let embed_pb = mp.add(ProgressBar::new(total as u64));
+        embed_pb.set_style(embed_style);
+        embed_pb.set_prefix("Embed  ");
+
+        // Create channel for extracted content
+        let (tx, mut rx) = mpsc::channel::<ManpageContent>(channel_size);
+
+        // Spawn extraction task
+        let extract_handle = tokio::spawn(async move {
+            let mut extracted = 0;
+            let mut errors = 0;
+
+            for path in paths {
+                match ManpageScanner::extract_content(&path) {
+                    Ok(content) => {
+                        if tx.send(content).await.is_err() {
+                            break; // Receiver dropped
+                        }
+                        extracted += 1;
+                    }
+                    Err(e) => {
+                        errors += 1;
+                        debug!(path = ?path, error = %e, "Failed to extract content");
+                    }
+                }
+                extract_pb.inc(1);
+            }
+
+            extract_pb.finish();
+            (extracted, errors)
+        });
+
+        // Collect embeddings from channel
+        let client = self.client.clone();
+        let model = self.model.clone();
+        let failed_items = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+
+        let mut contents = Vec::with_capacity(total);
+        while let Some(content) = rx.recv().await {
+            contents.push(content);
+        }
+
+        // Wait for extraction to complete
+        let (extracted, errors) = extract_handle.await.context("Extraction task failed")?;
+
+        if errors > 0 {
+            println!("  (Skipped {errors} malformed manpages)");
+        }
+        info!(
+            extracted = extracted,
+            errors = errors,
+            "Extraction complete"
+        );
+
+        // Now generate embeddings in parallel
+        let results: Vec<Option<ManpageEntry>> = stream::iter(contents.into_iter())
+            .map(|content| {
+                let client = client.clone();
+                let model = model.clone();
+                let embed_pb = embed_pb.clone();
+                let failed_items = Arc::clone(&failed_items);
+
+                async move {
+                    let result = Self::generate_single(&client, &model, &content).await;
+                    embed_pb.inc(1);
+
+                    match result {
+                        Ok(entry) => Some(entry),
+                        Err(e) => {
+                            warn!(tool = %content.tool_name, error = %e, "Failed to embed");
+                            failed_items.lock().await.push(content);
+                            None
+                        }
+                    }
+                }
+            })
+            .buffer_unordered(concurrency)
+            .collect()
+            .await;
+
+        embed_pb.finish();
+
+        // Collect results
+        let mut entries: Vec<ManpageEntry> = results.into_iter().flatten().collect();
+
+        // Retry failed items
+        let failed = failed_items.lock().await;
+        if !failed.is_empty() {
+            info!(count = failed.len(), "Retrying failed embeddings");
+            println!("\nRetrying {} failed embeddings...", failed.len());
+
+            for content in failed.iter() {
+                if let Ok(vector) = self.generate_with_retry(&content.description).await {
+                    entries.push(ManpageEntry {
+                        tool_name: content.tool_name.clone(),
+                        section: content.section.clone(),
+                        description: content.description.clone(),
+                        vector,
+                    });
+                }
+            }
+        }
+
+        info!(count = entries.len(), "Pipelined processing complete");
+        Ok(entries)
     }
 }
 
