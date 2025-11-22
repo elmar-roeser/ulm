@@ -8,6 +8,7 @@
 pub mod config;
 pub mod index;
 pub mod install;
+pub mod metadata;
 pub mod models;
 pub mod ollama;
 
@@ -17,6 +18,7 @@ pub use install::{
     detect_system, display_status, install_docker, install_native, start_ollama, wait_for_ollama,
     InstallResult, OllamaStatus, SystemCapabilities,
 };
+pub use metadata::IndexMetadata;
 pub use models::{
     display_model_selection, get_available_models, get_system_ram_gb, pull_model_with_progress,
     PullProgress, RecommendedModel,
@@ -217,6 +219,18 @@ pub fn run_clean() -> Result<()> {
         removed = true;
     }
 
+    // Remove metadata
+    let metadata_path = db_path
+        .parent()
+        .map(|p| p.join("index_metadata.json"))
+        .unwrap_or_default();
+    if metadata_path.exists() {
+        std::fs::remove_file(&metadata_path)
+            .with_context(|| format!("Failed to remove metadata: {}", metadata_path.display()))?;
+        println!("✓ Removed metadata: {}", metadata_path.display());
+        removed = true;
+    }
+
     // Remove config
     let config_path = get_config_path()?;
     if config_path.exists() {
@@ -238,6 +252,7 @@ pub fn run_clean() -> Result<()> {
 /// Runs the indexing steps (shared between setup and update).
 ///
 /// Uses pipelined processing: extraction and embedding run in parallel.
+/// Supports incremental updates by tracking file hashes.
 ///
 /// # Errors
 ///
@@ -246,10 +261,10 @@ async fn run_indexing() -> Result<usize> {
     // Step 3: Scan manpage directories
     println!("Scanning manpage directories...");
     let scanner = ManpageScanner::new();
-    let paths = scanner
+    let all_paths = scanner
         .scan_directories()
         .context("Failed to scan manpage directories")?;
-    let total_paths = paths.len();
+    let total_paths = all_paths.len();
     println!("✓ Found {total_paths} manpages\n");
 
     if total_paths == 0 {
@@ -257,17 +272,37 @@ async fn run_indexing() -> Result<usize> {
         return Ok(0);
     }
 
-    // Steps 4-5: Extract and embed in pipeline
+    // Load metadata and filter to changed files
+    let mut metadata = IndexMetadata::load().unwrap_or_default();
+    metadata.remove_deleted();
+
+    let (paths_to_process, unchanged) = metadata.filter_changed(all_paths.clone());
+    let to_process_count = paths_to_process.len();
+
+    if to_process_count == 0 {
+        println!("✓ All {unchanged} manpages unchanged - nothing to update\n");
+        return Ok(unchanged);
+    }
+
+    if unchanged > 0 {
+        println!("  {unchanged} unchanged, {to_process_count} to process\n");
+    }
+
+    // Steps 4-5: Extract and embed in pipeline (only changed files)
     println!("Extracting and generating embeddings (pipelined)...");
 
     let generator = EmbeddingGenerator::new().context("Failed to create embedding generator")?;
     let entries = generator
-        .generate_embeddings_pipelined(paths)
+        .generate_embeddings_pipelined(paths_to_process.clone())
         .await
         .context("Failed to generate embeddings")?;
 
     let entry_count = entries.len();
     println!("✓ Generated {entry_count} embeddings\n");
+
+    // Update metadata with processed files
+    metadata.update_hashes(&paths_to_process);
+    metadata.save().context("Failed to save metadata")?;
 
     // Step 6: Store in LanceDB
     println!("Storing in database...");
