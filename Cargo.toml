@@ -13,6 +13,7 @@ categories = ["command-line-utilities"]
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
 
 # CLI parsing
 clap = { version = "4", features = ["derive"] }

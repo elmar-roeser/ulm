@@ -16,6 +16,7 @@ use futures::stream::{self, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, warn};
 
 use crate::llm::{OllamaClient, EMBEDDING_MODEL};
@@ -269,7 +270,7 @@ impl EmbeddingGenerator {
         embed_pb.set_prefix("Embed  ");
 
         // Create channel for extracted content
-        let (tx, mut rx) = mpsc::channel::<ManpageContent>(channel_size);
+        let (tx, rx) = mpsc::channel::<ManpageContent>(channel_size);
 
         // Spawn extraction task
         let extract_handle = tokio::spawn(async move {
@@ -296,30 +297,14 @@ impl EmbeddingGenerator {
             (extracted, errors)
         });
 
-        // Collect embeddings from channel
+        // Process embeddings as they come from extraction (true pipelining)
         let client = self.client.clone();
         let model = self.model.clone();
         let failed_items = Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
-        let mut contents = Vec::with_capacity(total);
-        while let Some(content) = rx.recv().await {
-            contents.push(content);
-        }
-
-        // Wait for extraction to complete
-        let (extracted, errors) = extract_handle.await.context("Extraction task failed")?;
-
-        if errors > 0 {
-            println!("  (Skipped {errors} malformed manpages)");
-        }
-        info!(
-            extracted = extracted,
-            errors = errors,
-            "Extraction complete"
-        );
-
-        // Now generate embeddings in parallel
-        let results: Vec<Option<ManpageEntry>> = stream::iter(contents.into_iter())
+        // Convert receiver to stream and process concurrently
+        let rx_stream = ReceiverStream::new(rx);
+        let results: Vec<Option<ManpageEntry>> = rx_stream
             .map(|content| {
                 let client = client.clone();
                 let model = model.clone();
@@ -345,6 +330,18 @@ impl EmbeddingGenerator {
             .await;
 
         embed_pb.finish();
+
+        // Wait for extraction to complete and get stats
+        let (extracted, errors) = extract_handle.await.context("Extraction task failed")?;
+
+        if errors > 0 {
+            println!("  (Skipped {errors} malformed manpages)");
+        }
+        info!(
+            extracted = extracted,
+            errors = errors,
+            "Extraction complete"
+        );
 
         // Collect results
         let mut entries: Vec<ManpageEntry> = results.into_iter().flatten().collect();
