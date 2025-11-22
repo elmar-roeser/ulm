@@ -250,23 +250,19 @@ impl EmbeddingGenerator {
             "Starting pipelined extraction and embedding"
         );
 
-        // Setup progress bars
+        // Setup progress bars with consistent style
         let mp = MultiProgress::new();
-        let extract_style = ProgressStyle::default_bar()
-            .template("{prefix:.bold} [{bar:30.yellow/blue}] {pos}/{len}")
-            .context("Invalid extract progress bar template")?
-            .progress_chars("=>-");
-        let embed_style = ProgressStyle::default_bar()
-            .template("{prefix:.bold} [{bar:30.green/blue}] {pos}/{len}")
-            .context("Invalid embed progress bar template")?
-            .progress_chars("#>-");
+        let bar_style = ProgressStyle::default_bar()
+            .template("{prefix:.bold.cyan} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)")
+            .context("Invalid progress bar template")?
+            .progress_chars("█▓░");
 
         let extract_pb = mp.add(ProgressBar::new(total as u64));
-        extract_pb.set_style(extract_style);
+        extract_pb.set_style(bar_style.clone());
         extract_pb.set_prefix("Extract");
 
         let embed_pb = mp.add(ProgressBar::new(total as u64));
-        embed_pb.set_style(embed_style);
+        embed_pb.set_style(bar_style);
         embed_pb.set_prefix("Embed  ");
 
         // Create channel for extracted content

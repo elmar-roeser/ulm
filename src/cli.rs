@@ -51,6 +51,12 @@ pub enum Commands {
     /// Re-scans manpage directories and updates the search index
     /// with any new or modified manpages.
     Update,
+
+    /// Remove all ulm data (database and config).
+    ///
+    /// Deletes the manpage index and configuration file.
+    /// Useful for starting fresh or uninstalling.
+    Clean,
 }
 
 impl Args {

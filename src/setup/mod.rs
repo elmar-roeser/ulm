@@ -198,6 +198,43 @@ pub async fn run_update() -> Result<()> {
     Ok(())
 }
 
+/// Removes all ulm data (database and config).
+///
+/// # Errors
+///
+/// Returns an error if deletion fails.
+pub fn run_clean() -> Result<()> {
+    println!("ulm clean - Removing all data\n");
+
+    let mut removed = false;
+
+    // Remove database
+    let db_path = db::get_database_path()?;
+    if db_path.exists() {
+        std::fs::remove_dir_all(&db_path)
+            .with_context(|| format!("Failed to remove database: {}", db_path.display()))?;
+        println!("✓ Removed database: {}", db_path.display());
+        removed = true;
+    }
+
+    // Remove config
+    let config_path = get_config_path()?;
+    if config_path.exists() {
+        std::fs::remove_file(&config_path)
+            .with_context(|| format!("Failed to remove config: {}", config_path.display()))?;
+        println!("✓ Removed config: {}", config_path.display());
+        removed = true;
+    }
+
+    if removed {
+        println!("\n✓ Clean complete!");
+    } else {
+        println!("Nothing to clean - no ulm data found.");
+    }
+
+    Ok(())
+}
+
 /// Runs the indexing steps (shared between setup and update).
 ///
 /// Uses pipelined processing: extraction and embedding run in parallel.

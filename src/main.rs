@@ -96,6 +96,11 @@ async fn run() -> Result<u8> {
             setup::run_update().await?;
             Ok(0)
         }
+        Some(Commands::Clean) => {
+            info!("running clean");
+            setup::run_clean()?;
+            Ok(0)
+        }
         None => {
             if args.has_query() {
                 let query = args.query_string();
