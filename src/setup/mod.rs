@@ -14,8 +14,8 @@ pub mod ollama;
 pub use config::{get_config_path, load_config, save_config, Config};
 pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
 pub use install::{
-    detect_system, display_status, install_native, start_ollama, wait_for_ollama, InstallResult,
-    OllamaStatus, SystemCapabilities,
+    detect_system, display_status, install_docker, install_native, start_ollama, wait_for_ollama,
+    InstallResult, OllamaStatus, SystemCapabilities,
 };
 pub use models::{
     display_model_selection, get_available_models, get_system_ram_gb, pull_model_with_progress,
@@ -45,14 +45,58 @@ use crate::llm::OllamaClient;
 pub async fn run_setup() -> Result<()> {
     println!("ulm setup - Initializing manpage index\n");
 
-    // Step 1: Check Ollama connection
-    println!("Checking Ollama connection...");
-    let checker = OllamaChecker::new().context("Failed to create Ollama checker")?;
-    checker
-        .check_connection()
-        .await
-        .context("Failed to connect to Ollama")?;
-    println!("✓ Ollama detected at localhost:11434\n");
+    // Step 1: Detect system and ensure Ollama is running
+    println!("Detecting system...");
+    let caps = detect_system().await?;
+    display_status(&caps);
+
+    match caps.ollama_status {
+        OllamaStatus::Running => {
+            println!("✓ Ollama is running\n");
+        }
+        OllamaStatus::Installed => {
+            println!("Ollama is installed but not running. Starting...");
+            start_ollama().await?;
+            wait_for_ollama(30).await?;
+            println!("✓ Ollama started\n");
+        }
+        OllamaStatus::NotInstalled => {
+            println!("\nOllama is not installed. How would you like to install it?\n");
+            println!("  1. Native installation (recommended)");
+            println!("  2. Docker container");
+            println!("  3. Cancel setup\n");
+            print!("Select option [1-3]: ");
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+
+            match input.trim() {
+                "1" => {
+                    let result = install_native(&caps.os).await?;
+                    if !result.success {
+                        anyhow::bail!("Installation failed: {}", result.message);
+                    }
+                    println!("{}", result.message);
+                    start_ollama().await?;
+                    wait_for_ollama(30).await?;
+                    println!("✓ Ollama installed and started\n");
+                }
+                "2" => {
+                    let result = install_docker("run").await?;
+                    if !result.success {
+                        anyhow::bail!("Installation failed: {}", result.message);
+                    }
+                    println!("{}", result.message);
+                    wait_for_ollama(30).await?;
+                    println!("✓ Ollama Docker container started\n");
+                }
+                _ => {
+                    anyhow::bail!("Setup cancelled");
+                }
+            }
+        }
+    }
 
     // Step 2: Model selection and setup
     let client = OllamaClient::new().context("Failed to create Ollama client")?;
