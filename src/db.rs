@@ -49,6 +49,7 @@ fn init_sqlite_vec() {
         // SAFETY: This registers sqlite-vec as an auto-extension that loads
         // automatically for all new connections. The transmute converts the
         // init function pointer to the expected callback signature.
+        #[allow(clippy::missing_transmute_annotations)]
         unsafe {
             sqlite3_auto_extension(Some(std::mem::transmute(
                 sqlite_vec::sqlite3_vec_init as *const (),

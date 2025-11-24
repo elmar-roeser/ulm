@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-11-24
+
+### Fixed
+- SQLite-vec extension loading via `sqlite3_auto_extension`
+- KNN query syntax using `k = ?` constraint instead of LIMIT
+
 ## [0.3.0] - 2025-11-24
 
 ### Changed
@@ -130,7 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - anyhow 1.x (error handling)
 - tracing (logging)
 
-[Unreleased]: https://github.com/eroeser/ulm/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/elmar-roeser/ulm/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/elmar-roeser/ulm/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/eroeser/ulm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eroeser/ulm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eroeser/ulm/releases/tag/v0.1.0
