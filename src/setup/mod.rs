@@ -12,7 +12,9 @@ pub mod metadata;
 pub mod models;
 pub mod ollama;
 
-pub use config::{get_config_path, load_config, save_config, Config};
+pub use config::{
+    get_config_path, load_config, save_config, Config, IndexConfig, ModelsConfig, OllamaConfig,
+};
 pub use index::{EmbeddingGenerator, ManpageContent, ManpageEntry, ManpageScanner};
 pub use install::{
     detect_system, display_status, install_docker, install_native, start_ollama, wait_for_ollama,
@@ -20,8 +22,10 @@ pub use install::{
 };
 pub use metadata::IndexMetadata;
 pub use models::{
-    display_model_selection, get_available_models, get_system_ram_gb, pull_model_with_progress,
-    PullProgress, RecommendedModel,
+    display_embedding_model_selection, display_model_selection, display_preset_selection,
+    get_available_embedding_models, get_available_models, get_system_ram_gb,
+    pull_model_with_progress, EmbeddingModel, ModelPreset, PresetSelection, PullProgress,
+    RecommendedModel, MODEL_PRESETS,
 };
 pub use ollama::OllamaChecker;
 
@@ -29,7 +33,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::db;
-use crate::llm::{OllamaClient, EMBEDDING_MODEL};
+use crate::llm::OllamaClient;
 
 /// Runs the complete setup process.
 ///
@@ -104,57 +108,107 @@ pub async fn run_setup() -> Result<()> {
     // Step 2: Model selection and setup
     let client = OllamaClient::new().context("Failed to create Ollama client")?;
 
-    // Get available models with installed status
-    println!("Fetching available models...");
-    let models = get_available_models(&client)
-        .await
-        .context("Failed to fetch available models")?;
-
-    // Detect system RAM and display selection
+    // Detect system RAM
     let system_ram = get_system_ram_gb();
-    println!("System RAM: {system_ram:.1} GB\n");
+    println!("System RAM: {system_ram:.1} GB");
 
-    let selected_idx = display_model_selection(&models, system_ram)
-        .context("Failed to display model selection")?;
+    // Ask for preset or custom selection
+    let preset_selection =
+        display_preset_selection(system_ram).context("Failed to display preset selection")?;
 
-    let selected_model = &models[selected_idx];
-    info!(model = %selected_model.name, "User selected model");
+    let (embedding_model_name, llm_model_name) = match preset_selection {
+        PresetSelection::Preset(idx) => {
+            let preset = &MODEL_PRESETS[idx];
+            info!(preset = preset.name, "User selected preset");
+            println!("\nUsing '{}' preset:", preset.name);
+            println!("  Embedding: {}", preset.embedding_model);
+            println!("  LLM: {}\n", preset.llm_model);
+            (
+                preset.embedding_model.to_string(),
+                preset.llm_model.to_string(),
+            )
+        }
+        PresetSelection::Custom => {
+            // Step 2a: Embedding model selection
+            println!("\nFetching embedding models...");
+            let embedding_models = get_available_embedding_models(&client)
+                .await
+                .context("Failed to fetch embedding models")?;
 
-    // Pull model if not installed
-    if selected_model.installed {
-        println!("\n✓ Model '{}' already installed\n", selected_model.name);
-    } else {
-        println!("\nDownloading {}...", selected_model.name);
-        pull_model_with_progress(&client, &selected_model.name)
-            .await
-            .context("Failed to pull model")?;
-        println!("✓ Model '{}' downloaded\n", selected_model.name);
-    }
+            let embedding_idx = display_embedding_model_selection(&embedding_models)
+                .context("Failed to display embedding model selection")?;
 
-    // Pull embedding model if not installed
-    println!("Checking embedding model...");
+            let selected_embedding = &embedding_models[embedding_idx];
+            info!(model = %selected_embedding.name, "User selected embedding model");
+
+            // Step 2b: LLM model selection
+            println!("\nFetching LLM models...");
+            let llm_models = get_available_models(&client)
+                .await
+                .context("Failed to fetch LLM models")?;
+
+            let llm_idx = display_model_selection(&llm_models, system_ram)
+                .context("Failed to display LLM model selection")?;
+
+            let selected_llm = &llm_models[llm_idx];
+            info!(model = %selected_llm.name, "User selected LLM model");
+
+            (selected_embedding.name.clone(), selected_llm.name.clone())
+        }
+    };
+
+    // Check and pull embedding model
     let installed_models = client
         .list_models()
         .await
         .context("Failed to get installed models")?;
-    let embedding_installed = installed_models
-        .iter()
-        .any(|m| m.name.starts_with(EMBEDDING_MODEL));
+    let installed_names: Vec<&str> = installed_models.iter().map(|m| m.name.as_str()).collect();
+
+    let embedding_installed = installed_names.iter().any(|name| {
+        *name == embedding_model_name || name.starts_with(&format!("{}:", embedding_model_name))
+    });
 
     if embedding_installed {
-        println!("✓ Embedding model '{EMBEDDING_MODEL}' already installed\n");
+        println!(
+            "✓ Embedding model '{}' already installed",
+            embedding_model_name
+        );
     } else {
-        println!("Downloading embedding model {EMBEDDING_MODEL}...");
-        pull_model_with_progress(&client, EMBEDDING_MODEL)
+        println!("Downloading embedding model {}...", embedding_model_name);
+        pull_model_with_progress(&client, &embedding_model_name)
             .await
             .context("Failed to pull embedding model")?;
-        println!("✓ Embedding model '{EMBEDDING_MODEL}' downloaded\n");
+        println!("✓ Embedding model '{}' downloaded", embedding_model_name);
+    }
+
+    // Check and pull LLM model
+    let llm_installed = installed_names
+        .iter()
+        .any(|name| *name == llm_model_name || name.starts_with(&format!("{}:", llm_model_name)));
+
+    if llm_installed {
+        println!("✓ LLM model '{}' already installed\n", llm_model_name);
+    } else {
+        println!("Downloading LLM model {}...", llm_model_name);
+        pull_model_with_progress(&client, &llm_model_name)
+            .await
+            .context("Failed to pull LLM model")?;
+        println!("✓ LLM model '{}' downloaded\n", llm_model_name);
     }
 
     // Save configuration
     let config = Config {
-        model_name: selected_model.name.clone(),
-        ollama_url: "http://localhost:11434".to_string(),
+        models: ModelsConfig {
+            embedding_model: embedding_model_name,
+            llm_model: llm_model_name,
+        },
+        ollama: OllamaConfig {
+            url: "http://localhost:11434".to_string(),
+        },
+        index: IndexConfig {
+            embedding_dimension: None, // Will be set after indexing
+            last_embedding_model: None,
+        },
     };
     save_config(&config).context("Failed to save configuration")?;
     println!(
@@ -299,6 +353,15 @@ async fn run_indexing() -> Result<usize> {
 
     let entry_count = entries.len();
     println!("✓ Generated {entry_count} embeddings\n");
+
+    // Update config with embedding dimension
+    if let Some(first_entry) = entries.first() {
+        let dimension = first_entry.vector.len() as u32;
+        let mut config = load_config().context("Failed to load config")?;
+        config.update_index_metadata(dimension);
+        save_config(&config).context("Failed to save config with index metadata")?;
+        info!(dimension = dimension, model = %config.embedding_model(), "Saved index metadata to config");
+    }
 
     // Update metadata with processed files
     metadata.update_hashes(&paths_to_process);

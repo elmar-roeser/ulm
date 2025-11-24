@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run tests
         run: cargo test --verbose
 
@@ -29,6 +31,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
@@ -53,5 +57,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install protoc (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Install protoc (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install protobuf
       - name: Build
         run: cargo build --release

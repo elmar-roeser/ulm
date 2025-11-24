@@ -12,19 +12,98 @@ use serde::{Deserialize, Serialize};
 /// Application configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Config {
-    /// The name of the Ollama model to use.
-    pub model_name: String,
+    /// Model configuration.
+    pub models: ModelsConfig,
+    /// Ollama server configuration.
+    pub ollama: OllamaConfig,
+    /// Index metadata.
+    pub index: IndexConfig,
+}
+
+/// Model configuration for embedding and LLM.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModelsConfig {
+    /// Model used for generating embeddings (index + query).
+    pub embedding_model: String,
+    /// Model used for LLM response generation.
+    pub llm_model: String,
+}
+
+/// Ollama server configuration.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OllamaConfig {
     /// The URL of the Ollama server.
-    pub ollama_url: String,
+    pub url: String,
+}
+
+/// Index metadata for validation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IndexConfig {
+    /// Embedding dimension used when building index.
+    pub embedding_dimension: Option<u32>,
+    /// Model name used when building index.
+    pub last_embedding_model: Option<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            model_name: "llama3.2:3b".to_string(),
-            ollama_url: "http://localhost:11434".to_string(),
+            models: ModelsConfig {
+                embedding_model: "nomic-embed-text".to_string(),
+                llm_model: "llama3.2:3b".to_string(),
+            },
+            ollama: OllamaConfig {
+                url: "http://localhost:11434".to_string(),
+            },
+            index: IndexConfig {
+                embedding_dimension: None,
+                last_embedding_model: None,
+            },
         }
     }
+}
+
+impl Config {
+    /// Get the embedding model name.
+    pub fn embedding_model(&self) -> &str {
+        &self.models.embedding_model
+    }
+
+    /// Get the LLM model name.
+    pub fn llm_model(&self) -> &str {
+        &self.models.llm_model
+    }
+
+    /// Get the Ollama URL.
+    pub fn ollama_url(&self) -> &str {
+        &self.ollama.url
+    }
+
+    /// Update index metadata after building index.
+    pub fn update_index_metadata(&mut self, dimension: u32) {
+        self.index.embedding_dimension = Some(dimension);
+        self.index.last_embedding_model = Some(self.models.embedding_model.clone());
+    }
+
+    /// Check if index needs rebuild due to model change.
+    pub fn needs_index_rebuild(&self) -> bool {
+        match &self.index.last_embedding_model {
+            Some(last_model) => last_model != &self.models.embedding_model,
+            None => false, // No previous index, not a "rebuild"
+        }
+    }
+
+    /// Get index dimension if available.
+    pub fn index_dimension(&self) -> Option<u32> {
+        self.index.embedding_dimension
+    }
+}
+
+/// Legacy configuration format for migration.
+#[derive(Debug, Deserialize)]
+struct LegacyConfig {
+    model_name: String,
+    ollama_url: String,
 }
 
 /// Gets the XDG-compliant config file path.
@@ -51,9 +130,10 @@ pub fn get_config_path() -> Result<PathBuf> {
     Ok(config_dir.join("config.toml"))
 }
 
-/// Loads configuration from file.
+/// Loads configuration from file with automatic migration.
 ///
 /// Returns default configuration if the file doesn't exist.
+/// Automatically migrates legacy single-model format to new multi-model format.
 ///
 /// # Errors
 ///
@@ -68,10 +148,39 @@ pub fn load_config() -> Result<Config> {
     let content = fs::read_to_string(&config_path)
         .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
 
-    let config: Config = toml::from_str(&content)
-        .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+    // Try to parse as new format first
+    if let Ok(config) = toml::from_str::<Config>(&content) {
+        return Ok(config);
+    }
 
-    Ok(config)
+    // Try to parse as legacy format and migrate
+    if let Ok(legacy) = toml::from_str::<LegacyConfig>(&content) {
+        tracing::info!("Migrating legacy config to new multi-model format");
+
+        let config = Config {
+            models: ModelsConfig {
+                // Use legacy model for both (user can change later)
+                embedding_model: legacy.model_name.clone(),
+                llm_model: legacy.model_name,
+            },
+            ollama: OllamaConfig {
+                url: legacy.ollama_url,
+            },
+            index: IndexConfig {
+                embedding_dimension: None,
+                last_embedding_model: None,
+            },
+        };
+
+        // Save migrated config
+        save_config(&config)?;
+        tracing::info!("Config migrated successfully");
+
+        return Ok(config);
+    }
+
+    // Neither format worked
+    anyhow::bail!("Failed to parse config file: {}", config_path.display())
 }
 
 /// Saves configuration to file.
@@ -110,39 +219,98 @@ mod tests {
     #[test]
     fn test_config_default() {
         let config = Config::default();
-        assert_eq!(config.model_name, "llama3.2:3b");
-        assert_eq!(config.ollama_url, "http://localhost:11434");
+        assert_eq!(config.models.embedding_model, "nomic-embed-text");
+        assert_eq!(config.models.llm_model, "llama3.2:3b");
+        assert_eq!(config.ollama.url, "http://localhost:11434");
+        assert_eq!(config.index.embedding_dimension, None);
     }
 
     #[test]
     fn test_config_serialization() {
         let config = Config {
-            model_name: "mistral:7b".to_string(),
-            ollama_url: "http://localhost:11434".to_string(),
+            models: ModelsConfig {
+                embedding_model: "nomic-embed-text".to_string(),
+                llm_model: "mistral:7b".to_string(),
+            },
+            ollama: OllamaConfig {
+                url: "http://localhost:11434".to_string(),
+            },
+            index: IndexConfig {
+                embedding_dimension: Some(768),
+                last_embedding_model: Some("nomic-embed-text".to_string()),
+            },
         };
 
         let toml_str = toml::to_string(&config).unwrap();
-        assert!(toml_str.contains("model_name = \"mistral:7b\""));
-        assert!(toml_str.contains("ollama_url = \"http://localhost:11434\""));
+        assert!(toml_str.contains("embedding_model = \"nomic-embed-text\""));
+        assert!(toml_str.contains("llm_model = \"mistral:7b\""));
+        assert!(toml_str.contains("embedding_dimension = 768"));
     }
 
     #[test]
     fn test_config_deserialization() {
         let toml_str = r#"
+            [models]
+            embedding_model = "mxbai-embed-large"
+            llm_model = "llama3.1:8b"
+
+            [ollama]
+            url = "http://localhost:11434"
+
+            [index]
+            embedding_dimension = 1024
+            last_embedding_model = "mxbai-embed-large"
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.models.embedding_model, "mxbai-embed-large");
+        assert_eq!(config.models.llm_model, "llama3.1:8b");
+        assert_eq!(config.index.embedding_dimension, Some(1024));
+    }
+
+    #[test]
+    fn test_legacy_config_migration() {
+        let legacy_toml = r#"
             model_name = "llama3.1:8b"
             ollama_url = "http://localhost:11434"
         "#;
 
-        let config: Config = toml::from_str(toml_str).unwrap();
-        assert_eq!(config.model_name, "llama3.1:8b");
-        assert_eq!(config.ollama_url, "http://localhost:11434");
+        // Parse as legacy
+        let legacy: LegacyConfig = toml::from_str(legacy_toml).unwrap();
+
+        // Migrate
+        let config = Config {
+            models: ModelsConfig {
+                embedding_model: legacy.model_name.clone(),
+                llm_model: legacy.model_name,
+            },
+            ollama: OllamaConfig {
+                url: legacy.ollama_url,
+            },
+            index: IndexConfig {
+                embedding_dimension: None,
+                last_embedding_model: None,
+            },
+        };
+
+        assert_eq!(config.models.embedding_model, "llama3.1:8b");
+        assert_eq!(config.models.llm_model, "llama3.1:8b");
     }
 
     #[test]
     fn test_config_roundtrip() {
         let original = Config {
-            model_name: "phi3:mini".to_string(),
-            ollama_url: "http://127.0.0.1:11434".to_string(),
+            models: ModelsConfig {
+                embedding_model: "nomic-embed-text".to_string(),
+                llm_model: "phi3:mini".to_string(),
+            },
+            ollama: OllamaConfig {
+                url: "http://127.0.0.1:11434".to_string(),
+            },
+            index: IndexConfig {
+                embedding_dimension: Some(768),
+                last_embedding_model: Some("nomic-embed-text".to_string()),
+            },
         };
 
         let toml_str = toml::to_string(&original).unwrap();
@@ -153,8 +321,6 @@ mod tests {
 
     #[test]
     fn test_get_config_path_returns_toml_file() {
-        // This test verifies the path ends with config.toml
-        // Note: Actual path depends on system, but filename should be consistent
         let result = get_config_path();
         assert!(result.is_ok());
 
@@ -164,13 +330,21 @@ mod tests {
 
     #[test]
     fn test_save_and_load_config() {
-        // Create a temporary directory for testing
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("config.toml");
 
         let config = Config {
-            model_name: "test-model:latest".to_string(),
-            ollama_url: "http://test:11434".to_string(),
+            models: ModelsConfig {
+                embedding_model: "test-embed".to_string(),
+                llm_model: "test-llm".to_string(),
+            },
+            ollama: OllamaConfig {
+                url: "http://test:11434".to_string(),
+            },
+            index: IndexConfig {
+                embedding_dimension: Some(512),
+                last_embedding_model: Some("test-embed".to_string()),
+            },
         };
 
         // Serialize and write
@@ -182,6 +356,34 @@ mod tests {
         let loaded_config: Config = toml::from_str(&loaded_content).unwrap();
 
         assert_eq!(config, loaded_config);
+    }
+
+    #[test]
+    fn test_needs_index_rebuild() {
+        let mut config = Config::default();
+
+        // No previous index
+        assert!(!config.needs_index_rebuild());
+
+        // Set index metadata
+        config.update_index_metadata(768);
+        assert!(!config.needs_index_rebuild());
+
+        // Change embedding model
+        config.models.embedding_model = "different-model".to_string();
+        assert!(config.needs_index_rebuild());
+    }
+
+    #[test]
+    fn test_update_index_metadata() {
+        let mut config = Config::default();
+        config.update_index_metadata(1024);
+
+        assert_eq!(config.index.embedding_dimension, Some(1024));
+        assert_eq!(
+            config.index.last_embedding_model,
+            Some("nomic-embed-text".to_string())
+        );
     }
 
     #[cfg(unix)]

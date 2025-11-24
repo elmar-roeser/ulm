@@ -93,3 +93,12 @@ development_status:
   6-3-model-pull-with-progress: done
   6-4-config-storage: done
   epic-6-retrospective: optional
+
+  # Epic 7: Multi-Model Support
+  epic-7: contexted
+  7-1-config-migration: done
+  7-2-embedding-model-selection: done
+  7-3-llm-model-selection: done
+  7-4-index-dimension-validation: done
+  7-5-recommended-model-presets: done
+  epic-7-retrospective: optional

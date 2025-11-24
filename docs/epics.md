@@ -17,8 +17,9 @@ This document provides the complete epic and story breakdown for ulm, decomposin
 - Epic 4: Interactive Experience (8 stories)
 - Epic 5: Auto-Installation (3 stories)
 - Epic 6: Model Selection & Auto-Pull (4 stories)
+- Epic 7: Multi-Model Support (5 stories)
 
-**Total: 34 stories**
+**Total: 39 stories**
 
 ---
 
@@ -1285,8 +1286,8 @@ So that ulm uses it for all future queries.
 
 ## Summary
 
-**Total Epics:** 6
-**Total Stories:** 34
+**Total Epics:** 7
+**Total Stories:** 39
 
 | Epic | Stories | FRs Covered |
 |------|---------|-------------|
@@ -1296,6 +1297,7 @@ So that ulm uses it for all future queries.
 | Epic 4: Interactive Experience | 8 | FR27-40 |
 | Epic 5: Auto-Installation | 3 | FR3, FR5 (enhanced) |
 | Epic 6: Model Selection & Auto-Pull | 4 | FR41-FR44 |
+| Epic 7: Multi-Model Support | 5 | FR45-FR49, Bugfix |
 
 **Context Incorporated:**
 - ✅ PRD requirements (44 FRs)

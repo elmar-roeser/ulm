@@ -19,7 +19,8 @@ use tokio::time::sleep;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, warn};
 
-use crate::llm::{OllamaClient, EMBEDDING_MODEL};
+use crate::llm::OllamaClient;
+use crate::setup::config::load_config;
 
 /// Extracted content from a manpage.
 #[derive(Debug, Clone)]
@@ -55,16 +56,17 @@ pub struct EmbeddingGenerator {
 }
 
 impl EmbeddingGenerator {
-    /// Creates a new embedding generator with default model.
+    /// Creates a new embedding generator with model from config.
     ///
     /// # Errors
     ///
-    /// Returns an error if the client cannot be created.
+    /// Returns an error if the client cannot be created or config cannot be loaded.
     pub fn new() -> Result<Self> {
         let client = OllamaClient::new()?;
+        let config = load_config().context("Failed to load config")?;
         Ok(Self {
             client,
-            model: EMBEDDING_MODEL.to_string(),
+            model: config.models.embedding_model.clone(),
         })
     }
 

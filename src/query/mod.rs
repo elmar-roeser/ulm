@@ -6,7 +6,8 @@
 use anyhow::{Context, Result};
 use tracing::{debug, info};
 
-use crate::llm::{build_prompt, parse_suggestions, OllamaClient, DEFAULT_MODEL};
+use crate::llm::{build_prompt, parse_suggestions, OllamaClient};
+use crate::setup::load_config;
 
 pub mod context;
 pub mod search;
@@ -88,12 +89,15 @@ pub async fn process_query(query: &str) -> Result<Vec<CommandSuggestion>> {
     debug!(prompt_len = prompt.len(), "Built prompt");
 
     // Step 5: Call Ollama to generate response
+    let config = load_config().context("Failed to load config")?;
+    let llm_model = config.llm_model();
+
     let client = OllamaClient::new().context("Failed to create Ollama client")?;
 
-    info!("Calling Ollama for response generation");
+    info!(model = %llm_model, "Calling Ollama for response generation");
 
     let response = client
-        .generate(DEFAULT_MODEL, &prompt, true)
+        .generate(llm_model, &prompt, true)
         .await
         .context("Failed to generate LLM response")?;
 

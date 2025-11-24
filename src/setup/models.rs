@@ -275,6 +275,241 @@ fn get_recommended_model_index(ram_gb: f32) -> usize {
     }
 }
 
+/// Information about a recommended embedding model.
+#[derive(Debug, Clone)]
+pub struct EmbeddingModel {
+    /// Model name (e.g., "nomic-embed-text").
+    pub name: String,
+    /// Embedding dimension produced by this model.
+    pub dimension: u32,
+    /// Speed rating from 1-5 (5 = fastest).
+    pub speed_rating: u8,
+    /// Whether this model is installed in Ollama.
+    pub installed: bool,
+}
+
+/// Returns the default list of recommended embedding models.
+fn get_default_embedding_models() -> Vec<EmbeddingModel> {
+    vec![
+        EmbeddingModel {
+            name: "nomic-embed-text".to_string(),
+            dimension: 768,
+            speed_rating: 5,
+            installed: false,
+        },
+        EmbeddingModel {
+            name: "mxbai-embed-large".to_string(),
+            dimension: 1024,
+            speed_rating: 4,
+            installed: false,
+        },
+        EmbeddingModel {
+            name: "all-minilm".to_string(),
+            dimension: 384,
+            speed_rating: 5,
+            installed: false,
+        },
+    ]
+}
+
+/// Fetches available embedding models from Ollama and merges with recommended list.
+pub async fn get_available_embedding_models(client: &OllamaClient) -> Result<Vec<EmbeddingModel>> {
+    let installed_models = client
+        .list_models()
+        .await
+        .context("Failed to fetch installed models from Ollama")?;
+
+    let installed_names: Vec<String> = installed_models.iter().map(|m| m.name.clone()).collect();
+
+    let mut models = get_default_embedding_models();
+
+    for model in &mut models {
+        model.installed = installed_names.iter().any(|name| {
+            name == &model.name
+                || name.starts_with(&format!("{}:", model.name))
+                || model.name == name.split(':').next().unwrap_or(name)
+        });
+    }
+
+    Ok(models)
+}
+
+/// Displays the embedding model selection table and returns the selected model index.
+pub fn display_embedding_model_selection(models: &[EmbeddingModel]) -> Result<usize> {
+    println!("\nEmbedding Models (for search indexing):\n");
+    println!(
+        " #  {:<20} {:<10} {:<7} Status",
+        "Model", "Dimension", "Speed"
+    );
+    println!("{}", "-".repeat(55));
+
+    for (i, model) in models.iter().enumerate() {
+        let speed_stars = format_stars(model.speed_rating);
+
+        let status = if model.installed && i == 0 {
+            "[Installed] [Recommended]"
+        } else if model.installed {
+            "[Installed]"
+        } else if i == 0 {
+            "[Recommended]"
+        } else {
+            ""
+        };
+
+        println!(
+            " {}  {:<20} {:<10} {:<7} {}",
+            i + 1,
+            model.name,
+            model.dimension,
+            speed_stars,
+            status
+        );
+    }
+
+    println!();
+    println!("Recommended: {} (fast, good quality)", models[0].name);
+    println!();
+
+    // Read user selection
+    loop {
+        print!("Select embedding model (1-{}): ", models.len());
+        io::stdout().flush().context("Failed to flush stdout")?;
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .context("Failed to read user input")?;
+
+        match input.trim().parse::<usize>() {
+            Ok(n) if n >= 1 && n <= models.len() => return Ok(n - 1),
+            _ => {
+                println!(
+                    "Invalid selection. Please enter a number between 1 and {}.",
+                    models.len()
+                );
+            }
+        }
+    }
+}
+
+/// A preset configuration combining embedding and LLM models.
+#[derive(Debug, Clone)]
+pub struct ModelPreset {
+    /// Preset name (e.g., "Fast").
+    pub name: &'static str,
+    /// Description of the preset.
+    pub description: &'static str,
+    /// Embedding model name.
+    pub embedding_model: &'static str,
+    /// LLM model name.
+    pub llm_model: &'static str,
+    /// Total RAM requirement in GB.
+    pub ram_gb: f32,
+}
+
+/// Available model presets.
+pub const MODEL_PRESETS: &[ModelPreset] = &[
+    ModelPreset {
+        name: "Fast",
+        description: "Quick responses, lower RAM",
+        embedding_model: "nomic-embed-text",
+        llm_model: "llama3.2:3b",
+        ram_gb: 4.0,
+    },
+    ModelPreset {
+        name: "Balanced",
+        description: "Good speed and quality",
+        embedding_model: "nomic-embed-text",
+        llm_model: "mistral:7b",
+        ram_gb: 6.0,
+    },
+    ModelPreset {
+        name: "Quality",
+        description: "Best results, more RAM",
+        embedding_model: "mxbai-embed-large",
+        llm_model: "llama3.1:8b",
+        ram_gb: 8.0,
+    },
+];
+
+/// Result of preset selection.
+#[derive(Debug)]
+pub enum PresetSelection {
+    /// User selected a preset.
+    Preset(usize),
+    /// User wants custom selection.
+    Custom,
+}
+
+/// Displays preset selection and returns the user's choice.
+pub fn display_preset_selection(system_ram_gb: f32) -> Result<PresetSelection> {
+    // Determine recommended preset based on RAM
+    let recommended_idx = if system_ram_gb >= 8.0 {
+        2 // Quality
+    } else if system_ram_gb >= 6.0 {
+        1 // Balanced
+    } else {
+        0 // Fast
+    };
+
+    println!("\nModel Configuration:\n");
+    println!(" #  {:<12} {:<30} {:<7}", "Preset", "Description", "RAM");
+    println!("{}", "-".repeat(55));
+
+    for (i, preset) in MODEL_PRESETS.iter().enumerate() {
+        let status = if i == recommended_idx {
+            "[Recommended]"
+        } else {
+            ""
+        };
+
+        println!(
+            " {}  {:<12} {:<30} {:<7} {}",
+            i + 1,
+            preset.name,
+            preset.description,
+            format!("{:.0} GB", preset.ram_gb),
+            status
+        );
+    }
+
+    println!(
+        " {}  {:<12} {:<30}",
+        MODEL_PRESETS.len() + 1,
+        "Custom",
+        "Choose models individually"
+    );
+
+    println!();
+    println!("Your system has {:.1} GB RAM.", system_ram_gb);
+    println!();
+
+    loop {
+        print!("Select option (1-{}): ", MODEL_PRESETS.len() + 1);
+        io::stdout().flush().context("Failed to flush stdout")?;
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .context("Failed to read user input")?;
+
+        match input.trim().parse::<usize>() {
+            Ok(n) if n >= 1 && n <= MODEL_PRESETS.len() => {
+                return Ok(PresetSelection::Preset(n - 1));
+            }
+            Ok(n) if n == MODEL_PRESETS.len() + 1 => {
+                return Ok(PresetSelection::Custom);
+            }
+            _ => {
+                println!(
+                    "Invalid selection. Please enter a number between 1 and {}.",
+                    MODEL_PRESETS.len() + 1
+                );
+            }
+        }
+    }
+}
+
 /// Progress update from Ollama pull API.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PullProgress {

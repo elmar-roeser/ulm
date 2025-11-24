@@ -125,15 +125,7 @@ async fn process_query_flow(query: &str) -> Result<u8> {
         return Ok(0);
     }
 
-    // Auto-execute if single suggestion
-    if suggestions.len() == 1 {
-        let cmd = &suggestions[0].command;
-        info!(command = %cmd, "auto-executing single suggestion");
-        let exit_code = execute_command(cmd)?;
-        return Ok(exit_code.try_into().unwrap_or(1));
-    }
-
-    // Run TUI for multiple suggestions
+    // Always show TUI for user confirmation
     let action = run_tui(suggestions)?;
 
     // Handle user action

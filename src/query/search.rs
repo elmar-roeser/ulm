@@ -9,7 +9,8 @@ use anyhow::{Context, Result};
 use tracing::{debug, info};
 
 use crate::db;
-use crate::llm::{OllamaClient, DEFAULT_MODEL};
+use crate::llm::OllamaClient;
+use crate::setup::load_config;
 
 /// Maximum characters to include in manpage content for LLM context.
 const MAX_CONTENT_LENGTH: usize = 8000;
@@ -51,10 +52,38 @@ pub async fn search_tools(query: &str, limit: usize) -> Result<Vec<SearchMatch>>
         anyhow::bail!("Index not found. Please run 'ulm setup' first.");
     }
 
+    // Load config to get embedding model
+    let config = load_config().context("Failed to load config")?;
+    let embedding_model = config.embedding_model();
+
+    // Validate embedding model matches index
+    if config.needs_index_rebuild() {
+        let last_model = config
+            .index
+            .last_embedding_model
+            .as_deref()
+            .unwrap_or("unknown");
+        anyhow::bail!(
+            "Index was built with '{}' but config uses '{}'.\n\
+             Run 'ulm setup' to rebuild index with the current embedding model.",
+            last_model,
+            embedding_model
+        );
+    }
+
+    // If index exists but no model metadata, warn user to rebuild
+    if config.index.last_embedding_model.is_none() {
+        anyhow::bail!(
+            "Index was built with an unknown embedding model.\n\
+             Run 'ulm setup' to rebuild index with '{}'.",
+            embedding_model
+        );
+    }
+
     // Generate query embedding
     let client = OllamaClient::new().context("Failed to create Ollama client")?;
     let embedding = client
-        .generate_embedding(DEFAULT_MODEL, query)
+        .generate_embedding(embedding_model, query)
         .await
         .context("Failed to generate query embedding")?;
 
