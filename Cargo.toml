@@ -2,6 +2,7 @@
 name = "ulm"
 version = "0.3.0"
 edition = "2021"
+rust-version = "1.83"
 authors = ["Elmar Röser"]
 description = "AI-powered manpage assistant using local LLM"
 license = "MIT OR Apache-2.0"
@@ -48,8 +49,8 @@ futures = "0.3"
 ratatui = "0.29"
 crossterm = "0.28"
 
-# Clipboard
-arboard = "3"
+# Clipboard (text only, no image support to reduce MSRV)
+arboard = { version = "3", default-features = false }
 
 # XDG paths
 directories = "5"

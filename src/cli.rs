@@ -70,7 +70,7 @@ impl Args {
 
     /// Check if a query was provided.
     #[must_use]
-    pub const fn has_query(&self) -> bool {
+    pub fn has_query(&self) -> bool {
         !self.query.is_empty()
     }
 

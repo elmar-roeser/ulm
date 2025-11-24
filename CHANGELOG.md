@@ -12,8 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Breaking:** Replaced LanceDB with SQLite-vec for vector storage
   - Database file changed from `index.lance/` directory to `index.db` file
-  - Significantly reduced dependencies (removed AWS SDK)
-  - Lower MSRV
+  - Significantly reduced dependencies (removed AWS SDK, image processing)
+  - MSRV lowered from 1.88 to 1.83
 - Removed command edit feature ('B' key) - use copy ('K') instead
 - Users must run `ulm setup` to rebuild index after upgrade
 
