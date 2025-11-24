@@ -1,6 +1,6 @@
 [package]
 name = "ulm"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Elmar Röser"]
 description = "AI-powered manpage assistant using local LLM"
@@ -36,9 +36,12 @@ reqwest = { version = "0.12", features = ["json"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Vector database
-lancedb = "0.22"
-arrow-array = "56"
+# Vector database (SQLite with vector extension)
+rusqlite = { version = "0.32", features = ["bundled", "load_extension"] }
+sqlite-vec = "0.1"
+zerocopy = { version = "0.7", features = ["derive"] }
+
+# Async streams
 futures = "0.3"
 
 # Terminal UI
@@ -47,9 +50,6 @@ crossterm = "0.28"
 
 # Clipboard
 arboard = "3"
-
-# Line editor
-rustyline = "14"
 
 # XDG paths
 directories = "5"
@@ -73,7 +73,8 @@ tempfile = "3"
 
 [lints.rust]
 # --- Safety ---
-unsafe_code = "forbid"
+# Changed to deny to allow sqlite extension loading in db module
+unsafe_code = "deny"
 
 # --- Compatibility ---
 future_incompatible = { level = "deny", priority = 1 }

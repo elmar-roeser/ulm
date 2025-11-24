@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-11-24
+
+### Changed
+- **Breaking:** Replaced LanceDB with SQLite-vec for vector storage
+  - Database file changed from `index.lance/` directory to `index.db` file
+  - Significantly reduced dependencies (removed AWS SDK)
+  - Lower MSRV
+- Removed command edit feature ('B' key) - use copy ('K') instead
+- Users must run `ulm setup` to rebuild index after upgrade
+
+### Technical
+- Switched from LanceDB (arrow-based) to SQLite with sqlite-vec extension
+- Removed ~50 transitive dependencies
+- Synchronous database operations (async kept for API compatibility)
+
 ## [0.2.0] - 2025-11-24
 
 ### Added
@@ -115,6 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - anyhow 1.x (error handling)
 - tracing (logging)
 
-[Unreleased]: https://github.com/eroeser/ulm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/eroeser/ulm/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/eroeser/ulm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eroeser/ulm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eroeser/ulm/releases/tag/v0.1.0

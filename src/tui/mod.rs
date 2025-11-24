@@ -29,8 +29,6 @@ pub enum UserAction {
     Execute(String),
     /// Copy command to clipboard.
     Copy(String),
-    /// Edit command before executing.
-    Edit(String),
     /// Abort without action.
     Abort,
 }

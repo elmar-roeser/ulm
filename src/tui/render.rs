@@ -120,7 +120,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(status, Style::default().fg(Color::Green))
     } else {
         Span::styled(
-            " Up/Down Navigate  Enter/A Execute  K Copy  B Edit  Esc/q Quit ",
+            " Up/Down Navigate  Enter/A Execute  K Copy  Esc/q Quit ",
             Style::default().fg(Color::DarkGray),
         )
     };

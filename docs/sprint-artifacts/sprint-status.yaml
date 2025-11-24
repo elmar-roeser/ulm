@@ -102,3 +102,12 @@ development_status:
   7-4-index-dimension-validation: done
   7-5-recommended-model-presets: done
   epic-7-retrospective: optional
+
+  # Epic 8: SQLite-Vec Migration
+  epic-8: contexted
+  8-1-dependency-migration: done
+  8-2-database-schema-design: done
+  8-3-database-module-rewrite: done
+  8-4-search-integration: done
+  8-5-release-v030: in-progress
+  epic-8-retrospective: optional

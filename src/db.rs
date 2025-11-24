@@ -1,32 +1,28 @@
-//! `LanceDB` operations for vector storage and search.
+//! `SQLite`-vec operations for vector storage and search.
 //!
-//! This module handles all interactions with the embedded `LanceDB`
-//! database for storing and searching manpage embeddings.
+//! This module handles all interactions with the `SQLite` database
+//! using the sqlite-vec extension for vector similarity search.
+
+#![allow(unsafe_code)] // Required for loading SQLite extensions
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use arrow_array::types::Float32Type;
-use arrow_array::{
-    Array, FixedSizeListArray, Float32Array, RecordBatch, RecordBatchIterator, StringArray,
-};
-use futures::TryStreamExt;
-use lancedb::connect;
-use lancedb::query::{ExecutableQuery, QueryBase};
+use rusqlite::Connection;
 use tracing::{debug, info};
+use zerocopy::AsBytes;
 
 use crate::setup::ManpageEntry;
 
-/// Name of the manpages table in the database.
-const TABLE_NAME: &str = "manpages";
+/// Name of the database file.
+const DB_FILENAME: &str = "index.db";
 
-/// Gets the path to the `LanceDB` database.
+/// Gets the path to the `SQLite` database.
 ///
 /// Uses XDG Base Directory specification:
-/// - Linux: ~/.local/share/ulm/index.lance
-/// - macOS: ~/Library/Application Support/ulm/index.lance
+/// - Linux: ~/.local/share/ulm/index.db
+/// - macOS: ~/Library/Application Support/ulm/index.db
 ///
 /// # Errors
 ///
@@ -41,7 +37,31 @@ pub fn get_database_path() -> Result<PathBuf> {
     fs::create_dir_all(data_dir)
         .with_context(|| format!("Failed to create data directory: {}", data_dir.display()))?;
 
-    Ok(data_dir.join("index.lance"))
+    Ok(data_dir.join(DB_FILENAME))
+}
+
+/// Initialize sqlite-vec extension (called once at startup).
+fn init_sqlite_vec() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        // SAFETY: sqlite3_vec_init registers the extension functions with SQLite
+        // This must be called before any connections are opened
+        unsafe {
+            sqlite_vec::sqlite3_vec_init();
+        }
+    });
+}
+
+/// Opens a connection to the database with sqlite-vec loaded.
+fn open_connection(path: &PathBuf) -> Result<Connection> {
+    // Ensure sqlite-vec is initialized
+    init_sqlite_vec();
+
+    let conn = Connection::open(path)
+        .with_context(|| format!("Failed to open database: {}", path.display()))?;
+
+    Ok(conn)
 }
 
 /// Creates or overwrites the vector index with the given entries.
@@ -49,96 +69,81 @@ pub fn get_database_path() -> Result<PathBuf> {
 /// # Errors
 ///
 /// Returns an error if database operations fail.
+#[allow(clippy::unused_async)] // Keep async for API compatibility
 pub async fn create_index(entries: Vec<ManpageEntry>) -> Result<()> {
     let db_path = get_database_path()?;
-    let db_uri = db_path.to_string_lossy();
 
-    info!(path = %db_uri, entries = entries.len(), "Creating vector index");
+    info!(path = %db_path.display(), entries = entries.len(), "Creating vector index");
 
-    // Connect to database
-    let db = connect(&db_uri)
-        .execute()
-        .await
-        .with_context(|| format!("Failed to connect to database: {db_uri}"))?;
+    let conn = open_connection(&db_path)?;
 
-    // Check if table exists and drop it (overwrite mode)
-    let existing_tables = db
-        .table_names()
-        .execute()
-        .await
-        .context("Failed to list tables")?;
+    // Get vector dimension from first entry
+    let vector_dim = entries.first().map_or(768, |e| e.vector.len());
 
-    if existing_tables.contains(&TABLE_NAME.to_string()) {
-        debug!("Dropping existing table '{TABLE_NAME}'");
-        db.drop_table(TABLE_NAME, &[])
-            .await
-            .context("Failed to drop existing table")?;
+    // Drop existing tables
+    conn.execute("DROP TABLE IF EXISTS manpages_vec", [])
+        .context("Failed to drop vector table")?;
+    conn.execute("DROP TABLE IF EXISTS manpages", [])
+        .context("Failed to drop manpages table")?;
+
+    // Create metadata table
+    conn.execute(
+        "CREATE TABLE manpages (
+            id INTEGER PRIMARY KEY,
+            tool_name TEXT NOT NULL,
+            section TEXT NOT NULL,
+            description TEXT NOT NULL
+        )",
+        [],
+    )
+    .context("Failed to create manpages table")?;
+
+    // Create virtual table for vectors
+    conn.execute(
+        &format!(
+            "CREATE VIRTUAL TABLE manpages_vec USING vec0(
+                id INTEGER PRIMARY KEY,
+                embedding FLOAT[{vector_dim}]
+            )"
+        ),
+        [],
+    )
+    .context("Failed to create vector table")?;
+
+    // Insert entries
+    let mut stmt = conn
+        .prepare("INSERT INTO manpages (tool_name, section, description) VALUES (?1, ?2, ?3)")
+        .context("Failed to prepare insert statement")?;
+
+    let mut vec_stmt = conn
+        .prepare("INSERT INTO manpages_vec (id, embedding) VALUES (?1, ?2)")
+        .context("Failed to prepare vector insert statement")?;
+
+    for entry in &entries {
+        // Insert metadata
+        stmt.execute(rusqlite::params![
+            entry.tool_name,
+            entry.section,
+            entry.description
+        ])
+        .context("Failed to insert manpage")?;
+
+        let id = conn.last_insert_rowid();
+
+        // Insert vector as blob
+        let vector_blob = entry.vector.as_bytes();
+        vec_stmt
+            .execute(rusqlite::params![id, vector_blob])
+            .context("Failed to insert vector")?;
     }
 
-    // Create record batch from entries
-    let batch = create_record_batch(&entries)?;
-
-    // Create table with data
-    let batches = RecordBatchIterator::new(vec![Ok(batch.clone())], batch.schema());
-
-    db.create_table(TABLE_NAME, Box::new(batches))
-        .execute()
-        .await
-        .context("Failed to create table")?;
-
     info!(
-        "Created table '{}' with {} entries",
-        TABLE_NAME,
-        entries.len()
+        "Created index with {} entries (dimension: {})",
+        entries.len(),
+        vector_dim
     );
 
     Ok(())
-}
-
-/// Creates an Arrow `RecordBatch` from manpage entries.
-fn create_record_batch(entries: &[ManpageEntry]) -> Result<RecordBatch> {
-    // Extract data into column vectors
-    let tool_names: Vec<&str> = entries.iter().map(|e| e.tool_name.as_str()).collect();
-    let sections: Vec<&str> = entries.iter().map(|e| e.section.as_str()).collect();
-    let descriptions: Vec<&str> = entries.iter().map(|e| e.description.as_str()).collect();
-
-    // Get vector dimension from first entry (assume all same size)
-    // Vector dimensions are small (768-4096), so truncation is not a concern
-    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-    let vector_dim = entries.first().map_or(768, |e| e.vector.len()) as i32;
-
-    // Create Arrow arrays
-    let tool_name_array = Arc::new(StringArray::from(tool_names));
-    let section_array = Arc::new(StringArray::from(sections));
-    let description_array = Arc::new(StringArray::from(descriptions));
-
-    // Create fixed-size list array for vectors
-    let vector_array = Arc::new(
-        FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
-            entries
-                .iter()
-                .map(|e| Some(e.vector.iter().copied().map(Some).collect::<Vec<_>>())),
-            vector_dim,
-        ),
-    );
-
-    // Create record batch with schema
-    let batch = RecordBatch::try_from_iter(vec![
-        ("tool_name", tool_name_array as Arc<dyn Array>),
-        ("section", section_array as Arc<dyn Array>),
-        ("description", description_array as Arc<dyn Array>),
-        ("vector", vector_array as Arc<dyn Array>),
-    ])
-    .context("Failed to create record batch")?;
-
-    debug!(
-        rows = batch.num_rows(),
-        columns = batch.num_columns(),
-        vector_dim = vector_dim,
-        "Created record batch"
-    );
-
-    Ok(batch)
 }
 
 /// Checks if the vector index exists.
@@ -146,29 +151,27 @@ fn create_record_batch(entries: &[ManpageEntry]) -> Result<RecordBatch> {
 /// # Errors
 ///
 /// Returns an error if database operations fail.
+#[allow(clippy::unused_async)] // Keep async for API compatibility
 pub async fn index_exists() -> Result<bool> {
     let db_path = get_database_path()?;
 
-    // Check if database directory exists
+    // Check if database file exists
     if !db_path.exists() {
         return Ok(false);
     }
 
-    let db_uri = db_path.to_string_lossy();
+    let conn = open_connection(&db_path)?;
 
-    // Connect and check for table
-    let db = connect(&db_uri)
-        .execute()
-        .await
-        .with_context(|| format!("Failed to connect to database: {db_uri}"))?;
+    // Check for manpages table
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='manpages'",
+            [],
+            |row| row.get(0),
+        )
+        .context("Failed to check table existence")?;
 
-    let tables = db
-        .table_names()
-        .execute()
-        .await
-        .context("Failed to list tables")?;
-
-    Ok(tables.contains(&TABLE_NAME.to_string()))
+    Ok(count > 0)
 }
 
 /// Search result from vector similarity search.
@@ -189,74 +192,45 @@ pub struct SearchResult {
 /// # Errors
 ///
 /// Returns an error if database operations fail or index doesn't exist.
+#[allow(clippy::unused_async)] // Keep async for API compatibility
 pub async fn search(query_vector: &[f32], limit: usize) -> Result<Vec<SearchResult>> {
     let db_path = get_database_path()?;
-    let db_uri = db_path.to_string_lossy();
 
-    let db = connect(&db_uri)
-        .execute()
-        .await
-        .with_context(|| format!("Failed to connect to database: {db_uri}"))?;
+    let conn = open_connection(&db_path)?;
 
-    let table = db
-        .open_table(TABLE_NAME)
-        .execute()
-        .await
-        .context("Failed to open manpages table")?;
+    // Convert query vector to blob
+    let query_blob = query_vector.as_bytes();
 
-    // Perform vector search
-    let mut results = table
-        .vector_search(query_vector)
-        .context("Failed to create vector search")?
-        .limit(limit)
-        .execute()
-        .await
-        .context("Failed to execute vector search")?;
+    // Perform vector search using sqlite-vec
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                m.tool_name,
+                m.section,
+                m.description,
+                v.distance
+            FROM manpages_vec v
+            JOIN manpages m ON m.id = v.id
+            WHERE v.embedding MATCH ?1
+            ORDER BY v.distance
+            LIMIT ?2",
+        )
+        .context("Failed to prepare search query")?;
 
-    // Convert results to our type
+    let results = stmt
+        .query_map(rusqlite::params![query_blob, limit], |row| {
+            Ok(SearchResult {
+                tool_name: row.get(0)?,
+                section: row.get(1)?,
+                description: row.get(2)?,
+                score: row.get(3)?,
+            })
+        })
+        .context("Failed to execute search")?;
+
     let mut search_results = Vec::new();
-
-    while let Some(batch) = results
-        .try_next()
-        .await
-        .context("Failed to read result batch")?
-    {
-        let tool_names = batch
-            .column_by_name("tool_name")
-            .context("Missing tool_name column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("Invalid tool_name type")?;
-
-        let sections = batch
-            .column_by_name("section")
-            .context("Missing section column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("Invalid section type")?;
-
-        let descriptions = batch
-            .column_by_name("description")
-            .context("Missing description column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("Invalid description type")?;
-
-        let scores = batch
-            .column_by_name("_distance")
-            .context("Missing _distance column")?
-            .as_any()
-            .downcast_ref::<Float32Array>()
-            .context("Invalid _distance type")?;
-
-        for i in 0..batch.num_rows() {
-            search_results.push(SearchResult {
-                tool_name: tool_names.value(i).to_string(),
-                section: sections.value(i).to_string(),
-                description: descriptions.value(i).to_string(),
-                score: scores.value(i),
-            });
-        }
+    for result in results {
+        search_results.push(result.context("Failed to read search result")?);
     }
 
     debug!(count = search_results.len(), "Vector search completed");
@@ -269,40 +243,32 @@ pub async fn search(query_vector: &[f32], limit: usize) -> Result<Vec<SearchResu
 /// # Errors
 ///
 /// Returns an error if database operations fail.
+#[allow(clippy::unused_async)] // Keep async for API compatibility
 pub async fn count_entries() -> Result<usize> {
     let db_path = get_database_path()?;
-    let db_uri = db_path.to_string_lossy();
 
-    let db = connect(&db_uri)
-        .execute()
-        .await
-        .with_context(|| format!("Failed to connect to database: {db_uri}"))?;
+    let conn = open_connection(&db_path)?;
 
-    let table = db
-        .open_table(TABLE_NAME)
-        .execute()
-        .await
-        .context("Failed to open manpages table")?;
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM manpages", [], |row| row.get(0))
+        .context("Failed to count entries")?;
 
-    let count = table
-        .count_rows(None)
-        .await
-        .context("Failed to count rows")?;
-
-    Ok(count)
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+    Ok(count as usize)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
+    #[allow(dead_code)]
     fn create_test_entries(count: usize) -> Vec<ManpageEntry> {
         (0..count)
             .map(|i| ManpageEntry {
                 tool_name: format!("tool{i}"),
                 section: "1".to_string(),
                 description: format!("Description for tool {i}"),
+                #[allow(clippy::cast_precision_loss)]
                 vector: vec![0.1 * i as f32; 8], // Small vectors for testing
             })
             .collect()
@@ -312,83 +278,6 @@ mod tests {
     fn test_get_database_path() {
         let path = get_database_path().unwrap();
         assert!(path.to_string_lossy().contains("ulm"));
-        assert!(path.to_string_lossy().ends_with("index.lance"));
-    }
-
-    #[test]
-    fn test_create_record_batch() {
-        let entries = create_test_entries(3);
-        let batch = create_record_batch(&entries).unwrap();
-
-        assert_eq!(batch.num_rows(), 3);
-        assert_eq!(batch.num_columns(), 4);
-    }
-
-    #[test]
-    fn test_create_record_batch_empty() {
-        let entries: Vec<ManpageEntry> = vec![];
-        let batch = create_record_batch(&entries).unwrap();
-
-        assert_eq!(batch.num_rows(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_create_and_check_index() {
-        // Use temp directory for test
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.lance");
-
-        // Create entries
-        let entries = create_test_entries(5);
-
-        // Manually create index at test path
-        let db_uri = db_path.to_string_lossy();
-        let db = connect(&db_uri).execute().await.unwrap();
-
-        let batch = create_record_batch(&entries).unwrap();
-        let batches = RecordBatchIterator::new(vec![Ok(batch.clone())], batch.schema());
-
-        db.create_table(TABLE_NAME, Box::new(batches))
-            .execute()
-            .await
-            .unwrap();
-
-        // Verify table exists
-        let tables = db.table_names().execute().await.unwrap();
-        assert!(tables.contains(&TABLE_NAME.to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_overwrite_existing_index() {
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.lance");
-        let db_uri = db_path.to_string_lossy();
-
-        // Create first index
-        let entries1 = create_test_entries(3);
-        let db = connect(&db_uri).execute().await.unwrap();
-
-        let batch1 = create_record_batch(&entries1).unwrap();
-        let batches1 = RecordBatchIterator::new(vec![Ok(batch1.clone())], batch1.schema());
-        db.create_table(TABLE_NAME, Box::new(batches1))
-            .execute()
-            .await
-            .unwrap();
-
-        // Drop and recreate with different count
-        db.drop_table(TABLE_NAME, &[]).await.unwrap();
-
-        let entries2 = create_test_entries(7);
-        let batch2 = create_record_batch(&entries2).unwrap();
-        let batches2 = RecordBatchIterator::new(vec![Ok(batch2.clone())], batch2.schema());
-        db.create_table(TABLE_NAME, Box::new(batches2))
-            .execute()
-            .await
-            .unwrap();
-
-        // Verify new count
-        let table = db.open_table(TABLE_NAME).execute().await.unwrap();
-        let count = table.count_rows(None).await.unwrap();
-        assert_eq!(count, 7);
+        assert!(path.to_string_lossy().ends_with("index.db"));
     }
 }

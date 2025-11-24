@@ -18,8 +18,9 @@ This document provides the complete epic and story breakdown for ulm, decomposin
 - Epic 5: Auto-Installation (3 stories)
 - Epic 6: Model Selection & Auto-Pull (4 stories)
 - Epic 7: Multi-Model Support (5 stories)
+- Epic 8: SQLite-Vec Migration (5 stories)
 
-**Total: 39 stories**
+**Total: 44 stories**
 
 ---
 
@@ -1284,10 +1285,75 @@ So that ulm uses it for all future queries.
 
 ---
 
+## Epic 8: SQLite-Vec Migration
+
+**Goal:** Replace LanceDB with sqlite-vec for lower MSRV, fewer dependencies, and better portability.
+
+**Benefits:**
+- Lower MSRV (target: ~1.70 vs current 1.88)
+- Remove AWS SDK dependencies from lancedb
+- Smaller binary size
+- SQLite is universally available
+
+### Story 8.1: Dependency Migration
+- **As a** developer
+- **I want** to replace lancedb with sqlite-vec in dependencies
+- **So that** the project has fewer heavy dependencies
+
+**Tasks:**
+- [ ] Remove lancedb from Cargo.toml
+- [ ] Add sqlite-vec and rusqlite dependencies
+- [ ] Update feature flags if needed
+- [ ] Verify compilation
+
+### Story 8.2: Database Schema Design
+- **As a** developer
+- **I want** to design the SQLite schema for vector storage
+- **So that** embeddings can be stored and searched efficiently
+
+**Tasks:**
+- [ ] Design manpages table (tool_name, section, description, embedding)
+- [ ] Design metadata table for index info
+- [ ] Create schema migration from LanceDB format
+
+### Story 8.3: Database Module Rewrite
+- **As a** developer
+- **I want** to rewrite the db module for sqlite-vec
+- **So that** all database operations use the new backend
+
+**Tasks:**
+- [ ] Implement create_index() for sqlite-vec
+- [ ] Implement search() with vector similarity
+- [ ] Implement index_exists() check
+- [ ] Update get_database_path() for .sqlite extension
+
+### Story 8.4: Search Integration
+- **As a** user
+- **I want** vector search to work with sqlite-vec
+- **So that** queries return relevant results
+
+**Tasks:**
+- [ ] Update query/search.rs to use new db API
+- [ ] Verify similarity scoring works correctly
+- [ ] Test search accuracy
+
+### Story 8.5: Release v0.3.0
+- **As a** maintainer
+- **I want** to release with new MSRV and sqlite-vec
+- **So that** users can install with older Rust versions
+
+**Tasks:**
+- [ ] Determine actual MSRV with cargo-msrv
+- [ ] Update rust-version in Cargo.toml
+- [ ] Update CHANGELOG
+- [ ] Tag and release v0.3.0
+
+---
+
 ## Summary
 
-**Total Epics:** 7
-**Total Stories:** 39
+**Total Epics:** 8
+**Total Stories:** 44
 
 | Epic | Stories | FRs Covered |
 |------|---------|-------------|
@@ -1298,6 +1364,7 @@ So that ulm uses it for all future queries.
 | Epic 5: Auto-Installation | 3 | FR3, FR5 (enhanced) |
 | Epic 6: Model Selection & Auto-Pull | 4 | FR41-FR44 |
 | Epic 7: Multi-Model Support | 5 | FR45-FR49, Bugfix |
+| Epic 8: SQLite-Vec Migration | 5 | Technical Refactor |
 
 **Context Incorporated:**
 - ✅ PRD requirements (44 FRs)

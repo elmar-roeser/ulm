@@ -45,11 +45,6 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<UserAction> {
             .selected_suggestion()
             .map(|s| UserAction::Copy(s.command.clone())),
 
-        // Edit
-        KeyCode::Char('b' | 'B') => app
-            .selected_suggestion()
-            .map(|s| UserAction::Edit(s.command.clone())),
-
         // Abort
         KeyCode::Esc | KeyCode::Char('q') => Some(UserAction::Abort),
 
@@ -156,17 +151,6 @@ mod tests {
         match result {
             Some(UserAction::Copy(cmd)) => assert_eq!(cmd, "ls -la"),
             _ => panic!("Expected Copy action"),
-        }
-    }
-
-    #[test]
-    fn test_edit_b() {
-        let mut app = test_app();
-        let result = handle_event(&mut app, key_event(KeyCode::Char('b')));
-
-        match result {
-            Some(UserAction::Edit(cmd)) => assert_eq!(cmd, "ls -la"),
-            _ => panic!("Expected Edit action"),
         }
     }
 

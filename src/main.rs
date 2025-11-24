@@ -12,7 +12,7 @@ use crossterm::terminal::{disable_raw_mode, is_raw_mode_enabled};
 use tracing::{debug, error, info};
 use tracing_subscriber::EnvFilter;
 use ulm::cli::{Args, Commands};
-use ulm::exec::{copy_to_clipboard, edit_command, execute_command};
+use ulm::exec::{copy_to_clipboard, execute_command};
 use ulm::query;
 use ulm::setup;
 use ulm::tui::{display_error, run_tui, UserAction};
@@ -139,16 +139,6 @@ async fn process_query_flow(query: &str) -> Result<u8> {
             copy_to_clipboard(&cmd)?;
             println!("Copied to clipboard: {cmd}");
             Ok(0)
-        }
-        UserAction::Edit(cmd) => {
-            if let Some(edited) = edit_command(&cmd)? {
-                info!(command = %edited, "executing edited command");
-                let exit_code = execute_command(&edited)?;
-                Ok(exit_code.try_into().unwrap_or(1))
-            } else {
-                debug!("edit cancelled");
-                Ok(0)
-            }
         }
         UserAction::Abort => {
             debug!("user aborted");

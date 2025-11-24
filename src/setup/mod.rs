@@ -261,10 +261,10 @@ pub fn run_clean() -> Result<()> {
 
     let mut removed = false;
 
-    // Remove database
+    // Remove database (now a single .db file instead of .lance directory)
     let db_path = db::get_database_path()?;
     if db_path.exists() {
-        std::fs::remove_dir_all(&db_path)
+        std::fs::remove_file(&db_path)
             .with_context(|| format!("Failed to remove database: {}", db_path.display()))?;
         println!("✓ Removed database: {}", db_path.display());
         removed = true;
