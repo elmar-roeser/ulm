@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    name: Build ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        include:
+          - distro: debian
+            container: debian:trixie
+          - distro: almalinux
+            container: almalinux:9
+          - distro: archlinux
+            container: archlinux:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Debian)
+        if: matrix.distro == 'debian'
+        run: |
+          apt-get update
+          apt-get install -y curl build-essential protobuf-compiler pkg-config libssl-dev
+
+      - name: Install dependencies (AlmaLinux)
+        if: matrix.distro == 'almalinux'
+        run: |
+          dnf install -y curl gcc make protobuf-compiler openssl-devel perl-core
+
+      - name: Install dependencies (Arch Linux)
+        if: matrix.distro == 'archlinux'
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm curl base-devel protobuf openssl
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Build
+        run: |
+          . $HOME/.cargo/env
+          cargo build --release
+
+      - name: Package
+        run: |
+          tar czf ulm-${{ github.ref_name }}-x86_64-linux-${{ matrix.distro }}.tar.gz -C target/release ulm
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ulm-x86_64-linux-${{ matrix.distro }}
+          path: ulm-${{ github.ref_name }}-x86_64-linux-${{ matrix.distro }}.tar.gz
+
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            arch: x86_64
+          - target: aarch64-apple-darwin
+            arch: aarch64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install protoc
+        run: brew install protobuf
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          tar czf ulm-${{ github.ref_name }}-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release ulm
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ulm-${{ matrix.target }}
+          path: ulm-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+
+  release:
+    name: Create Release
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.tar.gz
+          generate_release_notes: true
