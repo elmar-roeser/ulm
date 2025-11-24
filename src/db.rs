@@ -40,13 +40,13 @@ pub fn get_database_path() -> Result<PathBuf> {
     Ok(data_dir.join(DB_FILENAME))
 }
 
-/// Initialize sqlite-vec extension (called once at startup).
+/// Initialize sqlite-vec as an auto-extension (called once at startup).
 fn init_sqlite_vec() {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        // SAFETY: sqlite3_vec_init registers the extension functions with SQLite
-        // This must be called before any connections are opened
+        // SAFETY: This registers sqlite-vec as an auto-extension that loads
+        // automatically for all new connections
         unsafe {
             sqlite_vec::sqlite3_vec_init();
         }
@@ -55,7 +55,7 @@ fn init_sqlite_vec() {
 
 /// Opens a connection to the database with sqlite-vec loaded.
 fn open_connection(path: &PathBuf) -> Result<Connection> {
-    // Ensure sqlite-vec is initialized
+    // Initialize sqlite-vec auto-extension before opening connection
     init_sqlite_vec();
 
     let conn = Connection::open(path)
