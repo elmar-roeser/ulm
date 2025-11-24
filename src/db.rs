@@ -206,6 +206,7 @@ pub async fn search(query_vector: &[f32], limit: usize) -> Result<Vec<SearchResu
     let query_blob = query_vector.as_bytes();
 
     // Perform vector search using sqlite-vec
+    // The vec0 KNN query requires 'k = ?' constraint instead of LIMIT
     let mut stmt = conn
         .prepare(
             "SELECT
@@ -215,9 +216,8 @@ pub async fn search(query_vector: &[f32], limit: usize) -> Result<Vec<SearchResu
                 v.distance
             FROM manpages_vec v
             JOIN manpages m ON m.id = v.id
-            WHERE v.embedding MATCH ?1
-            ORDER BY v.distance
-            LIMIT ?2",
+            WHERE v.embedding MATCH ?1 AND k = ?2
+            ORDER BY v.distance",
         )
         .context("Failed to prepare search query")?;
 
