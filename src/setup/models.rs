@@ -313,6 +313,10 @@ fn get_default_embedding_models() -> Vec<EmbeddingModel> {
 }
 
 /// Fetches available embedding models from Ollama and merges with recommended list.
+///
+/// # Errors
+///
+/// Returns an error if fetching models from Ollama fails.
 pub async fn get_available_embedding_models(client: &OllamaClient) -> Result<Vec<EmbeddingModel>> {
     let installed_models = client
         .list_models()
@@ -335,6 +339,10 @@ pub async fn get_available_embedding_models(client: &OllamaClient) -> Result<Vec
 }
 
 /// Displays the embedding model selection table and returns the selected model index.
+///
+/// # Errors
+///
+/// Returns an error if reading user input fails.
 pub fn display_embedding_model_selection(models: &[EmbeddingModel]) -> Result<usize> {
     println!("\nEmbedding Models (for search indexing):\n");
     println!(
@@ -442,8 +450,13 @@ pub enum PresetSelection {
 }
 
 /// Displays preset selection and returns the user's choice.
+///
+/// # Errors
+///
+/// Returns an error if reading user input fails.
 pub fn display_preset_selection(system_ram_gb: f32) -> Result<PresetSelection> {
     // Determine recommended preset based on RAM
+    #[allow(clippy::bool_to_int_with_if)]
     let recommended_idx = if system_ram_gb >= 8.0 {
         2 // Quality
     } else if system_ram_gb >= 6.0 {
@@ -481,7 +494,7 @@ pub fn display_preset_selection(system_ram_gb: f32) -> Result<PresetSelection> {
     );
 
     println!();
-    println!("Your system has {:.1} GB RAM.", system_ram_gb);
+    println!("Your system has {system_ram_gb:.1} GB RAM.");
     println!();
 
     loop {

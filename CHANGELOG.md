@@ -7,8 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned
-- Epic 5: Auto-Installation (Ollama/Docker auto-install during setup)
+## [0.2.0] - 2025-11-24
+
+### Added
+
+#### Multi-Model Support (Epic 7)
+- Separate configuration for embedding and LLM models
+- Model presets: Fast (4GB), Balanced (6GB), Quality (8GB)
+- Embedding model selection: nomic-embed-text, mxbai-embed-large, all-minilm
+- LLM model selection with RAM requirements display
+- Index validation detects embedding model mismatch
+- Config migration from legacy single-model format
+
+#### Auto-Installation (Epic 5)
+- Native Ollama installation via official installer
+- Docker container installation option
+- Automatic Ollama startup and health check
+
+#### Model Selection & Auto-Pull (Epic 6)
+- Fetch available models from Ollama library API
+- Display model selection UI with recommendations
+- Progress bar during model download
+- Save selected model to configuration
+
+### Changed
+- TUI always shows for user confirmation (removed auto-execute)
+- Configuration uses nested TOML structure: `[models]`, `[ollama]`, `[index]`
+- Index stores embedding model metadata for validation
+
+### Fixed
+- Dimension mismatch error when using different embedding models
+- CI workflow now installs protoc dependency
+
+### Infrastructure
+- Release workflow builds for Debian Trixie, Arch Linux, AlmaLinux 9, macOS x86_64/ARM64
 
 ## [0.1.0] - 2025-11-21
 
@@ -83,5 +115,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - anyhow 1.x (error handling)
 - tracing (logging)
 
-[Unreleased]: https://github.com/eroeser/ulm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/eroeser/ulm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/eroeser/ulm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eroeser/ulm/releases/tag/v0.1.0

@@ -64,10 +64,8 @@ pub async fn search_tools(query: &str, limit: usize) -> Result<Vec<SearchMatch>>
             .as_deref()
             .unwrap_or("unknown");
         anyhow::bail!(
-            "Index was built with '{}' but config uses '{}'.\n\
-             Run 'ulm setup' to rebuild index with the current embedding model.",
-            last_model,
-            embedding_model
+            "Index was built with '{last_model}' but config uses '{embedding_model}'.\n\
+             Run 'ulm setup' to rebuild index with the current embedding model."
         );
     }
 
@@ -75,8 +73,7 @@ pub async fn search_tools(query: &str, limit: usize) -> Result<Vec<SearchMatch>>
     if config.index.last_embedding_model.is_none() {
         anyhow::bail!(
             "Index was built with an unknown embedding model.\n\
-             Run 'ulm setup' to rebuild index with '{}'.",
-            embedding_model
+             Run 'ulm setup' to rebuild index with '{embedding_model}'."
         );
     }
 

@@ -165,35 +165,32 @@ pub async fn run_setup() -> Result<()> {
     let installed_names: Vec<&str> = installed_models.iter().map(|m| m.name.as_str()).collect();
 
     let embedding_installed = installed_names.iter().any(|name| {
-        *name == embedding_model_name || name.starts_with(&format!("{}:", embedding_model_name))
+        *name == embedding_model_name || name.starts_with(&format!("{embedding_model_name}:"))
     });
 
     if embedding_installed {
-        println!(
-            "✓ Embedding model '{}' already installed",
-            embedding_model_name
-        );
+        println!("✓ Embedding model '{embedding_model_name}' already installed");
     } else {
-        println!("Downloading embedding model {}...", embedding_model_name);
+        println!("Downloading embedding model {embedding_model_name}...");
         pull_model_with_progress(&client, &embedding_model_name)
             .await
             .context("Failed to pull embedding model")?;
-        println!("✓ Embedding model '{}' downloaded", embedding_model_name);
+        println!("✓ Embedding model '{embedding_model_name}' downloaded");
     }
 
     // Check and pull LLM model
     let llm_installed = installed_names
         .iter()
-        .any(|name| *name == llm_model_name || name.starts_with(&format!("{}:", llm_model_name)));
+        .any(|name| *name == llm_model_name || name.starts_with(&format!("{llm_model_name}:")));
 
     if llm_installed {
-        println!("✓ LLM model '{}' already installed\n", llm_model_name);
+        println!("✓ LLM model '{llm_model_name}' already installed\n");
     } else {
-        println!("Downloading LLM model {}...", llm_model_name);
+        println!("Downloading LLM model {llm_model_name}...");
         pull_model_with_progress(&client, &llm_model_name)
             .await
             .context("Failed to pull LLM model")?;
-        println!("✓ LLM model '{}' downloaded\n", llm_model_name);
+        println!("✓ LLM model '{llm_model_name}' downloaded\n");
     }
 
     // Save configuration
@@ -356,6 +353,7 @@ async fn run_indexing() -> Result<usize> {
 
     // Update config with embedding dimension
     if let Some(first_entry) = entries.first() {
+        #[allow(clippy::cast_possible_truncation)]
         let dimension = first_entry.vector.len() as u32;
         let mut config = load_config().context("Failed to load config")?;
         config.update_index_metadata(dimension);

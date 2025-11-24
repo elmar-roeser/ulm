@@ -65,16 +65,19 @@ impl Default for Config {
 
 impl Config {
     /// Get the embedding model name.
+    #[must_use]
     pub fn embedding_model(&self) -> &str {
         &self.models.embedding_model
     }
 
     /// Get the LLM model name.
+    #[must_use]
     pub fn llm_model(&self) -> &str {
         &self.models.llm_model
     }
 
     /// Get the Ollama URL.
+    #[must_use]
     pub fn ollama_url(&self) -> &str {
         &self.ollama.url
     }
@@ -86,6 +89,7 @@ impl Config {
     }
 
     /// Check if index needs rebuild due to model change.
+    #[must_use]
     pub fn needs_index_rebuild(&self) -> bool {
         match &self.index.last_embedding_model {
             Some(last_model) => last_model != &self.models.embedding_model,
@@ -94,13 +98,15 @@ impl Config {
     }
 
     /// Get index dimension if available.
-    pub fn index_dimension(&self) -> Option<u32> {
+    #[must_use]
+    pub const fn index_dimension(&self) -> Option<u32> {
         self.index.embedding_dimension
     }
 }
 
 /// Legacy configuration format for migration.
 #[derive(Debug, Deserialize)]
+#[allow(clippy::missing_docs_in_private_items)]
 struct LegacyConfig {
     model_name: String,
     ollama_url: String,
