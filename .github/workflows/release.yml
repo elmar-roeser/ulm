@@ -10,58 +10,35 @@ env:
 
 jobs:
   build-linux:
-    name: Build ${{ matrix.distro }}
+    name: Build Linux (musl)
     runs-on: ubuntu-latest
-    container: ${{ matrix.container }}
-    strategy:
-      matrix:
-        include:
-          - distro: debian
-            container: debian:trixie
-          - distro: almalinux
-            container: almalinux:9
-          - distro: archlinux
-            container: archlinux:latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies (Debian)
-        if: matrix.distro == 'debian'
-        run: |
-          apt-get update
-          apt-get install -y curl build-essential protobuf-compiler pkg-config libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
 
-      - name: Install dependencies (AlmaLinux)
-        if: matrix.distro == 'almalinux'
-        run: |
-          dnf install -y curl gcc make protobuf-compiler openssl-devel perl-core
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Install dependencies (Arch Linux)
-        if: matrix.distro == 'archlinux'
+      - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm curl base-devel protobuf openssl
-
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y musl-tools protobuf-compiler
 
       - name: Build
-        run: |
-          . $HOME/.cargo/env
-          cargo build --release
+        run: cargo build --release --target x86_64-unknown-linux-musl
 
       - name: Package
         run: |
-          tar czf ulm-${{ github.ref_name }}-x86_64-linux-${{ matrix.distro }}.tar.gz -C target/release ulm
+          tar czf ulm-${{ github.ref_name }}-x86_64-linux-musl.tar.gz -C target/x86_64-unknown-linux-musl/release ulm
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ulm-x86_64-linux-${{ matrix.distro }}
-          path: ulm-${{ github.ref_name }}-x86_64-linux-${{ matrix.distro }}.tar.gz
+          name: ulm-x86_64-linux-musl
+          path: ulm-${{ github.ref_name }}-x86_64-linux-musl.tar.gz
 
   build-macos:
     name: Build macOS ${{ matrix.arch }}

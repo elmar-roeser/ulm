@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow now installs protoc dependency
 
 ### Infrastructure
-- Release workflow builds for Debian Trixie, Arch Linux, AlmaLinux 9, macOS x86_64/ARM64
+- Release workflow with musl static binary for Linux, macOS x86_64/ARM64
 
 ## [0.1.0] - 2025-11-21
 
