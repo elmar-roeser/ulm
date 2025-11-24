@@ -12,8 +12,8 @@ keywords = ["cli", "manpage", "ai", "ollama", "assistant"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-# Async runtime
-tokio = { version = "1", features = ["full"] }
+# Async runtime (minimal features instead of "full")
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "fs", "io-util", "macros", "sync"] }
 tokio-stream = "0.1"
 
 # CLI parsing
@@ -30,8 +30,8 @@ toml = "0.8"
 # Hashing
 blake3 = "1"
 
-# HTTP client
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client (no http2 to reduce compile time)
+reqwest = { version = "0.12", default-features = false, features = ["json", "default-tls"] }
 
 # Logging
 tracing = "0.1"
@@ -55,8 +55,8 @@ arboard = { version = "3", default-features = false }
 # XDG paths
 directories = "5"
 
-# System information
-sysinfo = "0.31"
+# System information (only system/RAM, no disk/network/component)
+sysinfo = { version = "0.31", default-features = false, features = ["system"] }
 
 # Progress bars
 indicatif = "0.17"
