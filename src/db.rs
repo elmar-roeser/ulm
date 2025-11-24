@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use rusqlite::ffi::sqlite3_auto_extension;
 use rusqlite::Connection;
 use tracing::{debug, info};
 use zerocopy::AsBytes;
@@ -46,9 +47,12 @@ fn init_sqlite_vec() {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         // SAFETY: This registers sqlite-vec as an auto-extension that loads
-        // automatically for all new connections
+        // automatically for all new connections. The transmute converts the
+        // init function pointer to the expected callback signature.
         unsafe {
-            sqlite_vec::sqlite3_vec_init();
+            sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
         }
     });
 }
