@@ -23,6 +23,10 @@ pub struct OllamaClient {
     client: reqwest::Client,
     /// Base URL for Ollama API.
     base_url: String,
+    /// Timeout for LLM generation requests.
+    generate_timeout: Duration,
+    /// Timeout for embedding requests.
+    embedding_timeout: Duration,
 }
 
 /// Request for generating embeddings.
@@ -87,30 +91,64 @@ struct PullRequest {
     stream: bool,
 }
 
+/// Default timeout for LLM generation in seconds.
+const DEFAULT_GENERATE_TIMEOUT_SECS: u64 = 120;
+
+/// Default timeout for embedding requests in seconds.
+const DEFAULT_EMBEDDING_TIMEOUT_SECS: u64 = 60;
+
 impl OllamaClient {
-    /// Creates a new Ollama client with the default URL.
+    /// Creates a new Ollama client with the default URL and timeouts.
     ///
     /// # Errors
     ///
     /// Returns an error if the HTTP client cannot be created.
     pub fn new() -> Result<Self> {
-        Self::with_url(DEFAULT_OLLAMA_URL)
+        Self::with_config(
+            DEFAULT_OLLAMA_URL,
+            DEFAULT_GENERATE_TIMEOUT_SECS,
+            DEFAULT_EMBEDDING_TIMEOUT_SECS,
+        )
     }
 
-    /// Creates a new Ollama client with a custom URL.
+    /// Creates a new Ollama client with a custom URL and default timeouts.
     ///
     /// # Errors
     ///
     /// Returns an error if the HTTP client cannot be created.
     pub fn with_url(base_url: &str) -> Result<Self> {
+        Self::with_config(
+            base_url,
+            DEFAULT_GENERATE_TIMEOUT_SECS,
+            DEFAULT_EMBEDDING_TIMEOUT_SECS,
+        )
+    }
+
+    /// Creates a new Ollama client with custom URL and timeouts.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_url` - The base URL for the Ollama API
+    /// * `generate_timeout_secs` - Timeout for LLM generation requests in seconds
+    /// * `embedding_timeout_secs` - Timeout for embedding requests in seconds
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be created.
+    pub fn with_config(
+        base_url: &str,
+        generate_timeout_secs: u64,
+        embedding_timeout_secs: u64,
+    ) -> Result<Self> {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
             .build()
             .context("Failed to create HTTP client")?;
 
         Ok(Self {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),
+            generate_timeout: Duration::from_secs(generate_timeout_secs),
+            embedding_timeout: Duration::from_secs(embedding_timeout_secs),
         })
     }
 
@@ -189,14 +227,15 @@ impl OllamaClient {
         let response = self
             .client
             .post(&url)
-            .timeout(Duration::from_secs(30))
+            .timeout(self.embedding_timeout)
             .json(&request)
             .send()
             .await
             .with_context(|| {
                 format!(
-                    "Cannot connect to Ollama at {}. Start with: ollama serve",
-                    self.base_url
+                    "Cannot connect to Ollama at {} (timeout: {}s). Start with: ollama serve",
+                    self.base_url,
+                    self.embedding_timeout.as_secs()
                 )
             })?;
 
@@ -236,14 +275,15 @@ impl OllamaClient {
         let response = self
             .client
             .post(&url)
-            .timeout(Duration::from_secs(60))
+            .timeout(self.generate_timeout)
             .json(&request)
             .send()
             .await
             .with_context(|| {
                 format!(
-                    "Cannot connect to Ollama at {}. Start with: ollama serve",
-                    self.base_url
+                    "Cannot connect to Ollama at {} (timeout: {}s). Start with: ollama serve",
+                    self.base_url,
+                    self.generate_timeout.as_secs()
                 )
             })?;
 

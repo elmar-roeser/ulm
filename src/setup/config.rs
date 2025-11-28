@@ -34,6 +34,22 @@ pub struct ModelsConfig {
 pub struct OllamaConfig {
     /// The URL of the Ollama server.
     pub url: String,
+    /// Timeout for LLM generation requests in seconds.
+    #[serde(default = "default_generate_timeout")]
+    pub generate_timeout_secs: u64,
+    /// Timeout for embedding requests in seconds.
+    #[serde(default = "default_embedding_timeout")]
+    pub embedding_timeout_secs: u64,
+}
+
+/// Default timeout for LLM generation (120 seconds).
+const fn default_generate_timeout() -> u64 {
+    120
+}
+
+/// Default timeout for embedding requests (60 seconds).
+const fn default_embedding_timeout() -> u64 {
+    60
 }
 
 /// Index metadata for validation.
@@ -54,6 +70,8 @@ impl Default for Config {
             },
             ollama: OllamaConfig {
                 url: "http://localhost:11434".to_string(),
+                generate_timeout_secs: default_generate_timeout(),
+                embedding_timeout_secs: default_embedding_timeout(),
             },
             index: IndexConfig {
                 embedding_dimension: None,
@@ -80,6 +98,18 @@ impl Config {
     #[must_use]
     pub fn ollama_url(&self) -> &str {
         &self.ollama.url
+    }
+
+    /// Get the generate timeout in seconds.
+    #[must_use]
+    pub const fn generate_timeout_secs(&self) -> u64 {
+        self.ollama.generate_timeout_secs
+    }
+
+    /// Get the embedding timeout in seconds.
+    #[must_use]
+    pub const fn embedding_timeout_secs(&self) -> u64 {
+        self.ollama.embedding_timeout_secs
     }
 
     /// Update index metadata after building index.
@@ -171,6 +201,8 @@ pub fn load_config() -> Result<Config> {
             },
             ollama: OllamaConfig {
                 url: legacy.ollama_url,
+                generate_timeout_secs: default_generate_timeout(),
+                embedding_timeout_secs: default_embedding_timeout(),
             },
             index: IndexConfig {
                 embedding_dimension: None,
@@ -228,6 +260,8 @@ mod tests {
         assert_eq!(config.models.embedding_model, "nomic-embed-text");
         assert_eq!(config.models.llm_model, "llama3.2:3b");
         assert_eq!(config.ollama.url, "http://localhost:11434");
+        assert_eq!(config.ollama.generate_timeout_secs, 120);
+        assert_eq!(config.ollama.embedding_timeout_secs, 60);
         assert_eq!(config.index.embedding_dimension, None);
     }
 
@@ -240,6 +274,8 @@ mod tests {
             },
             ollama: OllamaConfig {
                 url: "http://localhost:11434".to_string(),
+                generate_timeout_secs: 180,
+                embedding_timeout_secs: 90,
             },
             index: IndexConfig {
                 embedding_dimension: Some(768),
@@ -251,6 +287,8 @@ mod tests {
         assert!(toml_str.contains("embedding_model = \"nomic-embed-text\""));
         assert!(toml_str.contains("llm_model = \"mistral:7b\""));
         assert!(toml_str.contains("embedding_dimension = 768"));
+        assert!(toml_str.contains("generate_timeout_secs = 180"));
+        assert!(toml_str.contains("embedding_timeout_secs = 90"));
     }
 
     #[test]
@@ -262,6 +300,8 @@ mod tests {
 
             [ollama]
             url = "http://localhost:11434"
+            generate_timeout_secs = 300
+            embedding_timeout_secs = 120
 
             [index]
             embedding_dimension = 1024
@@ -272,6 +312,27 @@ mod tests {
         assert_eq!(config.models.embedding_model, "mxbai-embed-large");
         assert_eq!(config.models.llm_model, "llama3.1:8b");
         assert_eq!(config.index.embedding_dimension, Some(1024));
+        assert_eq!(config.ollama.generate_timeout_secs, 300);
+        assert_eq!(config.ollama.embedding_timeout_secs, 120);
+    }
+
+    #[test]
+    fn test_config_deserialization_with_defaults() {
+        // Test that old configs without timeout fields still work
+        let toml_str = r#"
+            [models]
+            embedding_model = "nomic-embed-text"
+            llm_model = "llama3"
+
+            [ollama]
+            url = "http://localhost:11434"
+
+            [index]
+        "#;
+
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.ollama.generate_timeout_secs, 120);
+        assert_eq!(config.ollama.embedding_timeout_secs, 60);
     }
 
     #[test]
@@ -292,6 +353,8 @@ mod tests {
             },
             ollama: OllamaConfig {
                 url: legacy.ollama_url,
+                generate_timeout_secs: default_generate_timeout(),
+                embedding_timeout_secs: default_embedding_timeout(),
             },
             index: IndexConfig {
                 embedding_dimension: None,
@@ -312,6 +375,8 @@ mod tests {
             },
             ollama: OllamaConfig {
                 url: "http://127.0.0.1:11434".to_string(),
+                generate_timeout_secs: 240,
+                embedding_timeout_secs: 90,
             },
             index: IndexConfig {
                 embedding_dimension: Some(768),
@@ -346,6 +411,8 @@ mod tests {
             },
             ollama: OllamaConfig {
                 url: "http://test:11434".to_string(),
+                generate_timeout_secs: 200,
+                embedding_timeout_secs: 100,
             },
             index: IndexConfig {
                 embedding_dimension: Some(512),

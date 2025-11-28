@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-11-28
+
+### Added
+- Configurable request timeouts for Ollama API calls
+  - `generate_timeout_secs`: Timeout for LLM generation (default: 120s)
+  - `embedding_timeout_secs`: Timeout for embedding requests (default: 60s)
+- Support for remote Ollama servers via `ollama.url` configuration
+
+### Changed
+- Increased default generate timeout from 60s to 120s for slower hardware
+- Timeout values are now displayed in error messages for easier debugging
+
+### Configuration Example
+```toml
+[ollama]
+url = "http://192.168.1.100:11434"  # Remote Ollama server
+generate_timeout_secs = 300         # 5 minutes for slow hardware
+embedding_timeout_secs = 120        # 2 minutes for embeddings
+```
+
 ## [0.3.1] - 2025-11-24
 
 ### Fixed
@@ -136,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - anyhow 1.x (error handling)
 - tracing (logging)
 
-[Unreleased]: https://github.com/elmar-roeser/ulm/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/elmar-roeser/ulm/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/elmar-roeser/ulm/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/elmar-roeser/ulm/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/eroeser/ulm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eroeser/ulm/compare/v0.1.0...v0.2.0

@@ -106,6 +106,7 @@ pub async fn run_setup() -> Result<()> {
     }
 
     // Step 2: Model selection and setup
+    // Use default timeouts for setup since we don't have config yet
     let client = OllamaClient::new().context("Failed to create Ollama client")?;
 
     // Detect system RAM
@@ -193,20 +194,10 @@ pub async fn run_setup() -> Result<()> {
         println!("✓ LLM model '{llm_model_name}' downloaded\n");
     }
 
-    // Save configuration
-    let config = Config {
-        models: ModelsConfig {
-            embedding_model: embedding_model_name,
-            llm_model: llm_model_name,
-        },
-        ollama: OllamaConfig {
-            url: "http://localhost:11434".to_string(),
-        },
-        index: IndexConfig {
-            embedding_dimension: None, // Will be set after indexing
-            last_embedding_model: None,
-        },
-    };
+    // Save configuration with default timeouts
+    let mut config = Config::default();
+    config.models.embedding_model = embedding_model_name;
+    config.models.llm_model = llm_model_name;
     save_config(&config).context("Failed to save configuration")?;
     println!(
         "✓ Configuration saved to {}\n",

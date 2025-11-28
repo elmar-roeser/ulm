@@ -62,8 +62,12 @@ impl EmbeddingGenerator {
     ///
     /// Returns an error if the client cannot be created or config cannot be loaded.
     pub fn new() -> Result<Self> {
-        let client = OllamaClient::new()?;
         let config = load_config().context("Failed to load config")?;
+        let client = OllamaClient::with_config(
+            config.ollama_url(),
+            config.generate_timeout_secs(),
+            config.embedding_timeout_secs(),
+        )?;
         Ok(Self {
             client,
             model: config.models.embedding_model.clone(),

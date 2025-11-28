@@ -78,7 +78,12 @@ pub async fn search_tools(query: &str, limit: usize) -> Result<Vec<SearchMatch>>
     }
 
     // Generate query embedding
-    let client = OllamaClient::new().context("Failed to create Ollama client")?;
+    let client = OllamaClient::with_config(
+        config.ollama_url(),
+        config.generate_timeout_secs(),
+        config.embedding_timeout_secs(),
+    )
+    .context("Failed to create Ollama client")?;
     let embedding = client
         .generate_embedding(embedding_model, query)
         .await

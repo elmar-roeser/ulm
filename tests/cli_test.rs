@@ -28,7 +28,7 @@ fn test_version_flag() {
         .assert()
         .success()
         .stdout(predicate::str::contains("ulm"))
-        .stdout(predicate::str::contains("0.3.1"));
+        .stdout(predicate::str::contains("0.3.2"));
 }
 
 #[test]
@@ -113,5 +113,5 @@ fn test_version_short_flag() {
         .arg("-V")
         .assert()
         .success()
-        .stdout(predicate::str::contains("0.3.1"));
+        .stdout(predicate::str::contains("0.3.2"));
 }

@@ -92,7 +92,12 @@ pub async fn process_query(query: &str) -> Result<Vec<CommandSuggestion>> {
     let config = load_config().context("Failed to load config")?;
     let llm_model = config.llm_model();
 
-    let client = OllamaClient::new().context("Failed to create Ollama client")?;
+    let client = OllamaClient::with_config(
+        config.ollama_url(),
+        config.generate_timeout_secs(),
+        config.embedding_timeout_secs(),
+    )
+    .context("Failed to create Ollama client")?;
 
     info!(model = %llm_model, "Calling Ollama for response generation");
 
